@@ -14,7 +14,7 @@
 
 ## Overview
 
-Retrieve IP addresses form all interfaces on system (exuding loop back)
+Retrieve IP addresses from all interfaces on system (exuding loop back)
 
 ## Todo Items
 
