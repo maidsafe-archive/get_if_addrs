@@ -9,7 +9,7 @@ repository = "https://github.com/maidsafe/get_if_addrs"
 version = "0.1.0"
 
 [dependencies]
-ip = "~1.0.0"
+ip = "~1.1.0"
 libc = "~0.1.12"
 log = "~0.3.4"
 net2 = "0.2.20"
