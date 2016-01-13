@@ -38,6 +38,7 @@
          missing_debug_implementations)]
 
 extern crate ip;
+extern crate c_linked_list;
 extern crate libc;
 
 use std::io;
@@ -56,45 +57,10 @@ pub struct IfAddr {
     pub broadcast: Option<IpAddr>,
 }
 
-struct CLinkedList<T, N: FnMut(&mut T) -> *mut T> {
-    head: *mut T,
-    next: N,
-}
-
-struct CLinkedListIter<'a, T: 'a, N: FnMut(&mut T) -> *mut T + 'a> {
-    cll: &'a mut CLinkedList<T, N>,
-    head: *mut T,
-}
-
-impl<'a, T: 'a, N: FnMut(&mut T) -> *mut T + 'a> CLinkedList<T, N> {
-    pub fn iter(&'a mut self) -> CLinkedListIter<'a, T, N> {
-        let head = self.head;
-        CLinkedListIter {
-            cll: self,
-            head: head,
-        }
-    }
-}
-
-impl<'a, T: 'a, N: FnMut(&mut T) -> *mut T + 'a> Iterator for CLinkedListIter<'a, T, N> {
-    type Item = &'a mut T;
-
-    #[allow(unsafe_code)]
-    fn next(&mut self) -> Option<&'a mut T> {
-        if self.head.is_null() {
-            None
-        }
-        else {
-            let ret = unsafe { &mut *self.head };
-            self.head = (self.cll.next)(ret);
-            Some(ret)
-        }
-    }
-}
-
 #[cfg(not(windows))]
 mod getifaddrs_posix {
-    use super::{IfAddr, CLinkedList};
+    use super::c_linked_list::CLinkedListMut;
+    use super::IfAddr;
     use std::net::{Ipv4Addr, Ipv6Addr};
     use ip::IpAddr;
     use std::{mem, io};
@@ -167,7 +133,7 @@ mod getifaddrs_posix {
             }
         }
 
-        for ifaddr in (CLinkedList { head: ifaddrs, next: |a| a.ifa_next }).iter() {
+        for ifaddr in CLinkedListMut::from_ptr(ifaddrs, |a| a.ifa_next).iter() {
             // debug!("ifaddr1={}, next={}", ifaddr as u64, ifaddr.ifa_next as u64);
             if ifaddr.ifa_addr.is_null() {
                 continue;
@@ -208,10 +174,11 @@ pub fn get_if_addrs() -> io::Result<Vec<IfAddr>> {
 
 #[cfg(windows)]
 mod getifaddrs_windows {
-    use super::{IfAddr, CLinkedList};
+    use super::c_linked_list::CLinkedListConst;
+    use super::IfAddr;
     use std::net::{Ipv4Addr, Ipv6Addr};
     use ip::IpAddr;
-    use std::{str, ptr};
+    use std::{io, ptr};
     use std::ffi::CStr;
     use libc::types::common::c95::c_void;
     use libc::types::os::arch::c95::{c_char, c_ulong, size_t, c_int};
@@ -356,21 +323,24 @@ mod getifaddrs_windows {
             }
         }
 
-        for ifaddr in (CLinkedList { head: ifaddrs, next: |a| a.next }).iter() {
+        for ifaddr in CLinkedListConst::from_ptr(ifaddrs, |a| a.next).iter() {
             // debug!("ifaddr1={}, next={}", ifaddr as u64, ifaddr.ifa_next as u64);
 
-            for addr in (CLinkedList { head: ifaddr.first_unicast_address, next: |a| a.next }).iter() {
-                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }.to_string_lossy().to_owned();
+            for addr in CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next).iter() {
+                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }.to_string_lossy().into_owned();
 
                 let ipaddr = match sockaddr_to_ipaddr(addr.address.lp_socket_address) {
                     Some(ipaddr) => ipaddr,
                     None => continue,
                 };
 
-                let item_netmask;
-                let item_broadcast;
+                let mut item_netmask = match ipaddr {
+                    IpAddr::V4(..) => IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+                    IpAddr::V6(..) => IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)),
+                };
+                let mut item_broadcast = None;
                 // Search prefixes for a prefix matching addr
-                'prefixloop: for prefix in (CLinkedList { head: ifaddr.first_prefix, next: |p| p.next }).iter() {
+                'prefixloop: for prefix in CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next).iter() {
                     let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
                     match ipprefix {
                         None => continue,
@@ -452,12 +422,12 @@ mod getifaddrs_windows {
         unsafe {
             libc::free(ifaddrs as *mut c_void);
         }
-        ret
+        Ok(ret)
     }
 }
 #[cfg(windows)]
 /// Get address
-pub fn get_if_addrs() -> Vec<IfAddr> {
+pub fn get_if_addrs() -> io::Result<Vec<IfAddr>> {
     getifaddrs_windows::get_if_addrs()
 }
 
@@ -480,7 +450,7 @@ mod test {
 
     #[test]
     fn test_filter_loopback() {
-        let ifaddrs = filter_loopback(get_if_addrs());
+        let ifaddrs = filter_loopback(get_if_addrs().unwrap());
         for ifaddr in ifaddrs {
             assert!(!is_loopback(&ifaddr.addr));
         }
