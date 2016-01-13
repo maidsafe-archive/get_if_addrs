@@ -33,7 +33,7 @@
         unconditional_recursion, unknown_lints, unsafe_code, unused, unused_allocation,
         unused_attributes, unused_comparisons, unused_features, unused_parens, while_true)]
 #![warn(trivial_casts, trivial_numeric_casts, unused_extern_crates, unused_import_braces,
-        unused_qualifications, unused_results, variant_size_differences)]
+        unused_qualifications, unused_results)]
 #![allow(box_pointers, fat_ptr_transmutes, missing_copy_implementations,
          missing_debug_implementations)]
 
@@ -229,7 +229,7 @@ mod getifaddrs_posix {
                         false => None,
                     };
                     IfAddr::V6(Ifv6Addr {
-                        addr: ipv4_addr,
+                        addr: ipv6_addr,
                         netmask: netmask,
                         broadcast: broadcast,
                     })
