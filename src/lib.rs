@@ -40,7 +40,7 @@
 extern crate ip;
 extern crate libc;
 
-use std::net::Ipv4Addr;
+use std::io;
 use ip::IpAddr;
 
 /// Details about an interface on this host
@@ -53,27 +53,51 @@ pub struct IfAddr {
     /// The netmask of the interface
     pub netmask: IpAddr,
     /// How to send a broadcast on the interface
-    pub broadcast: IpAddr,
+    pub broadcast: Option<IpAddr>,
 }
 
-impl IfAddr {
-    /// Create a new IfAddr
-    pub fn new() -> IfAddr {
-        IfAddr {
-            name: String::new(),
-            addr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            netmask: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            broadcast: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+struct CLinkedList<T, N: FnMut(&mut T) -> *mut T> {
+    head: *mut T,
+    next: N,
+}
+
+struct CLinkedListIter<'a, T: 'a, N: FnMut(&mut T) -> *mut T + 'a> {
+    cll: &'a mut CLinkedList<T, N>,
+    head: *mut T,
+}
+
+impl<'a, T: 'a, N: FnMut(&mut T) -> *mut T + 'a> CLinkedList<T, N> {
+    pub fn iter(&'a mut self) -> CLinkedListIter<'a, T, N> {
+        let head = self.head;
+        CLinkedListIter {
+            cll: self,
+            head: head,
+        }
+    }
+}
+
+impl<'a, T: 'a, N: FnMut(&mut T) -> *mut T + 'a> Iterator for CLinkedListIter<'a, T, N> {
+    type Item = &'a mut T;
+
+    #[allow(unsafe_code)]
+    fn next(&mut self) -> Option<&'a mut T> {
+        if self.head.is_null() {
+            None
+        }
+        else {
+            let ret = unsafe { &mut *self.head };
+            self.head = (self.cll.next)(ret);
+            Some(ret)
         }
     }
 }
 
 #[cfg(not(windows))]
 mod getifaddrs_posix {
-    use super::IfAddr;
+    use super::{IfAddr, CLinkedList};
     use std::net::{Ipv4Addr, Ipv6Addr};
     use ip::IpAddr;
-    use std::{mem, str};
+    use std::{mem, io};
     use std::ffi::CStr;
     use libc::consts::os::bsd44::{AF_INET, AF_INET6};
     use libc::funcs::bsd43::getifaddrs as posix_getifaddrs;
@@ -122,74 +146,69 @@ mod getifaddrs_posix {
     }
 
     #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
-    fn do_broadcast(ifaddr: &posix_ifaddrs) -> IpAddr {
-        sockaddr_to_ipaddr(ifaddr.ifa_ifu).unwrap_or(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))
+    fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
+        sockaddr_to_ipaddr(ifaddr.ifa_ifu)
     }
 
     #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
-    fn do_broadcast(ifaddr: &posix_ifaddrs) -> IpAddr {
-        sockaddr_to_ipaddr(ifaddr.ifa_dstaddr).unwrap_or(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))
+    fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
+        sockaddr_to_ipaddr(ifaddr.ifa_dstaddr)
     }
 
     /// Return a vector of IP details for all the valid interfaces on this host
     #[allow(unsafe_code)]
-    pub fn getifaddrs() -> Vec<IfAddr> {
+    pub fn get_if_addrs() -> io::Result<Vec<IfAddr>> {
         let mut ret = Vec::<IfAddr>::new();
         let mut ifaddrs: *mut posix_ifaddrs;
         unsafe {
             ifaddrs = mem::uninitialized();
             if -1 == posix_getifaddrs(&mut ifaddrs) {
-                panic!("failed to retrieve interface details from getifaddrs()");
+                return Err(io::Error::last_os_error());
             }
         }
 
-        let mut ifaddr = ifaddrs;
-        let mut first = true;
-        while !ifaddr.is_null() {
-            if first {
-                first = false;
-            } else {
-                ifaddr = unsafe { (*ifaddr).ifa_next };
-            }
-            if ifaddr.is_null() {
-                break;
-            }
-            let ifaddr = &unsafe { *ifaddr };
+        for ifaddr in (CLinkedList { head: ifaddrs, next: |a| a.ifa_next }).iter() {
             // debug!("ifaddr1={}, next={}", ifaddr as u64, ifaddr.ifa_next as u64);
             if ifaddr.ifa_addr.is_null() {
                 continue;
             }
-            let mut item = IfAddr::new();
-            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name) }.to_bytes();
-            item.name = item.name + str::from_utf8(name).unwrap();
-            match sockaddr_to_ipaddr(ifaddr.ifa_addr) {
-                Some(a) => item.addr = a,
+            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name) }.to_string_lossy().into_owned();
+            let addr = match sockaddr_to_ipaddr(ifaddr.ifa_addr) {
+                Some(addr) => addr,
                 None => continue,
             };
-            if let Some(a) = sockaddr_to_ipaddr(ifaddr.ifa_netmask) {
-                item.netmask = a
+            let default = match addr {
+                IpAddr::V4(..) => IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+                IpAddr::V6(..) => IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)),
             };
-            if (ifaddr.ifa_flags & 2) != 0 {
-                item.broadcast = do_broadcast(ifaddr);
-            }
-            ret.push(item);
+            let netmask = sockaddr_to_ipaddr(ifaddr.ifa_netmask).unwrap_or(default);
+            let broadcast = match (ifaddr.ifa_flags & 2) != 0 {
+                true => do_broadcast(ifaddr),
+                false => None,
+            };
+            ret.push(IfAddr {
+                name: name,
+                addr: addr,
+                netmask: netmask,
+                broadcast: broadcast,
+            });
         }
         unsafe {
             posix_freeifaddrs(ifaddrs);
         }
-        ret
+        Ok(ret)
     }
 }
 
 /// For non-Windows operating system, use this function to get address
 #[cfg(not(windows))]
-pub fn getifaddrs() -> Vec<IfAddr> {
-    getifaddrs_posix::getifaddrs()
+pub fn get_if_addrs() -> io::Result<Vec<IfAddr>> {
+    getifaddrs_posix::get_if_addrs()
 }
 
 #[cfg(windows)]
 mod getifaddrs_windows {
-    use super::IfAddr;
+    use super::{IfAddr, CLinkedList};
     use std::net::{Ipv4Addr, Ipv6Addr};
     use ip::IpAddr;
     use std::{str, ptr};
@@ -304,7 +323,7 @@ mod getifaddrs_windows {
     // Refer: https://github.com/rust-lang/rfcs/issues/1020
     /// Return a vector of IP details for all the valid interfaces on this host
     #[allow(unsafe_code, trivial_numeric_casts)]
-    pub fn getifaddrs() -> Vec<IfAddr> {
+    pub fn get_if_addrs() -> io::Result<Vec<IfAddr>> {
         let mut ret = Vec::<IfAddr>::new();
         let mut ifaddrs: *const IpAdapterAddresses;
         let mut buffersize: c_ulong = 15000;
@@ -312,7 +331,7 @@ mod getifaddrs_windows {
             unsafe {
                 ifaddrs = libc::malloc(buffersize as size_t) as *mut IpAdapterAddresses;
                 if ifaddrs.is_null() {
-                    panic!("Failed to allocate buffer in getifaddrs()");
+                    panic!("Failed to allocate buffer in get_if_addrs()");
                 }
                 let retcode =
                     GetAdaptersAddresses(0,
@@ -332,143 +351,102 @@ mod getifaddrs_windows {
                         buffersize = buffersize * 2;
                         continue;
                     }
-                    _ => panic!("GetAdaptersAddresses() failed with error code {}", retcode),
+                    _ => return Err(io::Error::last_os_error()),
                 }
             }
         }
 
-        let mut ifaddr = ifaddrs;
-        let mut first = true;
-        while !ifaddr.is_null() {
-            if first {
-                first = false;
-            } else {
-                ifaddr = unsafe { (*ifaddr).next };
-            }
-            if ifaddr.is_null() {
-                break;
-            }
-            let ref ifaddr = unsafe { &*ifaddr };
+        for ifaddr in (CLinkedList { head: ifaddrs, next: |a| a.next }).iter() {
             // debug!("ifaddr1={}, next={}", ifaddr as u64, ifaddr.ifa_next as u64);
 
-            let mut addr = ifaddr.first_unicast_address;
-            if addr.is_null() {
-                continue;
-            }
-            let mut firstaddr = true;
-            while !addr.is_null() {
-                if firstaddr {
-                    firstaddr = false;
-                } else {
-                    addr = unsafe { (*addr).next };
-                }
-                if addr.is_null() {
-                    break;
-                }
+            for addr in (CLinkedList { head: ifaddr.first_unicast_address, next: |a| a.next }).iter() {
+                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }.to_string_lossy().to_owned();
 
-                let mut item = IfAddr::new();
-                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }.to_bytes();
-                item.name = item.name + str::from_utf8(name).unwrap();
+                let ipaddr = match sockaddr_to_ipaddr(addr.address.lp_socket_address) {
+                    Some(ipaddr) => ipaddr,
+                    None => continue,
+                };
 
-                let ipaddr = sockaddr_to_ipaddr(unsafe { (*addr).address.lp_socket_address });
-                if !ipaddr.is_some() {
-                    continue;
-                }
-                item.addr = ipaddr.unwrap();
-
+                let item_netmask;
+                let item_broadcast;
                 // Search prefixes for a prefix matching addr
-                let mut prefix = ifaddr.first_prefix;
-                if !prefix.is_null() {
-                    let mut first_prefix = true;
-                    'prefixloop: while !prefix.is_null() {
-                        if first_prefix {
-                            first_prefix = false;
-                        } else {
-                            prefix = unsafe { (*prefix).next };
-                        }
-                        if prefix.is_null() {
-                            break;
-                        }
-
-                        let ipprefix = sockaddr_to_ipaddr(unsafe {
-                            (*prefix).address.lp_socket_address
-                        });
-                        if !ipprefix.is_some() {
-                            continue;
-                        }
-                        match ipprefix.unwrap() {
-                            IpAddr::V4(ref a) => {
-                                if let IpAddr::V4(b) = item.addr {
-                                    let mut netmask: [u8; 4] = [0; 4];
-                                    for n in 0..unsafe { (*prefix).prefix_length as usize + 7 } /
-                                                8 {
-                                        let x_byte = b.octets()[n];
-                                        let y_byte = a.octets()[n];
-                                        for m in 0..8 {
-                                            if (n * 8) + m >
-                                               unsafe { (*prefix).prefix_length as usize } {
-                                                break;
-                                            }
-                                            let bit = 1 << m;
-                                            if (x_byte & bit) == (y_byte & bit) {
-                                                netmask[n] = netmask[n] | bit;
-                                            } else {
-                                                continue 'prefixloop;
-                                            }
+                'prefixloop: for prefix in (CLinkedList { head: ifaddr.first_prefix, next: |p| p.next }).iter() {
+                    let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
+                    match ipprefix {
+                        None => continue,
+                        Some(IpAddr::V4(ref a)) => {
+                            if let IpAddr::V4(b) = ipaddr {
+                                let mut netmask: [u8; 4] = [0; 4];
+                                for n in 0..((prefix.prefix_length as usize + 7) / 8) {
+                                    let x_byte = b.octets()[n];
+                                    let y_byte = a.octets()[n];
+                                    for m in 0..8 {
+                                        if (n * 8) + m > prefix.prefix_length as usize {
+                                            break;
+                                        }
+                                        let bit = 1 << m;
+                                        if (x_byte & bit) == (y_byte & bit) {
+                                            netmask[n] = netmask[n] | bit;
+                                        } else {
+                                            continue 'prefixloop;
                                         }
                                     }
-                                    item.netmask = IpAddr::V4(Ipv4Addr::new(netmask[0],
-                                                                            netmask[1],
-                                                                            netmask[2],
-                                                                            netmask[3]));
-                                    let mut broadcast: [u8; 4] = b.octets();
-                                    for n in 0..4 {
-                                        broadcast[n] = broadcast[n] | !netmask[n];
-                                    }
-                                    item.broadcast = IpAddr::V4(Ipv4Addr::new(broadcast[0],
-                                                                              broadcast[1],
-                                                                              broadcast[2],
-                                                                              broadcast[3]));
-                                    break 'prefixloop;
                                 }
+                                item_netmask = IpAddr::V4(Ipv4Addr::new(netmask[0],
+                                                                        netmask[1],
+                                                                        netmask[2],
+                                                                        netmask[3]));
+                                let mut broadcast: [u8; 4] = b.octets();
+                                for n in 0..4 {
+                                    broadcast[n] = broadcast[n] | !netmask[n];
+                                }
+                                item_broadcast = Some(IpAddr::V4(Ipv4Addr::new(broadcast[0],
+                                                                               broadcast[1],
+                                                                               broadcast[2],
+                                                                               broadcast[3])));
+                                break 'prefixloop;
                             }
-                            IpAddr::V6(ref a) => {
-                                if let IpAddr::V6(b) = item.addr {
-                                    // Iterate the bits in the prefix, if they all match this prefix
-                                    // is the right one, else try the next prefix
-                                    let mut netmask: [u16; 8] = [0; 8];
-                                    for n in 0..unsafe { (*prefix).prefix_length as usize + 15 } /
-                                                16 {
-                                        let x_word = b.segments()[n];
-                                        let y_word = a.segments()[n];
-                                        for m in 0..16 {
-                                            if (n * 16) + m >
-                                               unsafe { (*prefix).prefix_length as usize } {
-                                                break;
-                                            }
-                                            let bit = 1 << m;
-                                            if (x_word & bit) == (y_word & bit) {
-                                                netmask[n] = netmask[n] | bit;
-                                            } else {
-                                                continue 'prefixloop;
-                                            }
+                        }
+                        Some(IpAddr::V6(ref a)) => {
+                            if let IpAddr::V6(b) = ipaddr {
+                                // Iterate the bits in the prefix, if they all match this prefix
+                                // is the right one, else try the next prefix
+                                let mut netmask: [u16; 8] = [0; 8];
+                                for n in 0..((prefix.prefix_length as usize + 15) / 16) {
+                                    let x_word = b.segments()[n];
+                                    let y_word = a.segments()[n];
+                                    for m in 0..16 {
+                                        if (n * 16) + m > prefix.prefix_length as usize {
+                                            break;
+                                        }
+                                        let bit = 1 << m;
+                                        if (x_word & bit) == (y_word & bit) {
+                                            netmask[n] = netmask[n] | bit;
+                                        } else {
+                                            continue 'prefixloop;
                                         }
                                     }
-                                    item.netmask = IpAddr::V6(Ipv6Addr::new(netmask[0],
-                                                                            netmask[1],
-                                                                            netmask[2],
-                                                                            netmask[3],
-                                                                            netmask[4],
-                                                                            netmask[5],
-                                                                            netmask[6],
-                                                                            netmask[7]));
-                                    break 'prefixloop;
                                 }
+                                item_netmask = IpAddr::V6(Ipv6Addr::new(netmask[0],
+                                                                        netmask[1],
+                                                                        netmask[2],
+                                                                        netmask[3],
+                                                                        netmask[4],
+                                                                        netmask[5],
+                                                                        netmask[6],
+                                                                        netmask[7]));
+                                item_broadcast = None;
+                                break 'prefixloop;
                             }
-                        };
-                    }
+                        }
+                    };
                 }
-                ret.push(item);
+                ret.push(IfAddr {
+                    name: name,
+                    addr: ipaddr,
+                    netmask: item_netmask,
+                    broadcast: item_broadcast,
+                });
             }
         }
         unsafe {
@@ -479,8 +457,8 @@ mod getifaddrs_windows {
 }
 #[cfg(windows)]
 /// Get address
-pub fn getifaddrs() -> Vec<IfAddr> {
-    getifaddrs_windows::getifaddrs()
+pub fn get_if_addrs() -> Vec<IfAddr> {
+    getifaddrs_windows::get_if_addrs()
 }
 
 fn is_loopback(ip_addr: &IpAddr) -> bool {
@@ -498,11 +476,11 @@ pub fn filter_loopback(mut ifaddrs: Vec<IfAddr>) -> Vec<IfAddr> {
 
 #[cfg(test)]
 mod test {
-    use super::{getifaddrs, filter_loopback, is_loopback};
+    use super::{get_if_addrs, filter_loopback, is_loopback};
 
     #[test]
     fn test_filter_loopback() {
-        let ifaddrs = filter_loopback(getifaddrs());
+        let ifaddrs = filter_loopback(get_if_addrs());
         for ifaddr in ifaddrs {
             assert!(!is_loopback(&ifaddr.addr));
         }
