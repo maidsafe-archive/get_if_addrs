@@ -6,10 +6,10 @@ license = "GPL-3.0"
 name = "get_if_addrs"
 readme = "README.md"
 repository = "https://github.com/maidsafe/get_if_addrs"
-version = "0.1.1"
+version = "0.2.0"
 
 [dependencies]
 ip = "~1.1.0"
 libc = "~0.1.12"
-log = "~0.3.4"
-net2 = "0.2.20"
+c_linked_list = "~0.1.0"
+
