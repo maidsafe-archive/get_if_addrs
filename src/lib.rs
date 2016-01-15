@@ -537,12 +537,20 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 #[cfg(test)]
 mod test {
     use super::get_if_addrs;
+    use ip::IpAddr;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_get_if_addrs() {
         let ifaces = get_if_addrs().unwrap();
         println!("Local interfaces:");
         println!("{:#?}", ifaces);
+        // at least one loop back address
+        assert!(1 <= ifaces.iter().filter(|interface| interface.is_loopback()).count());
+        // one address of IpV4(127.0.0.1)
+        assert!(1 == ifaces.iter().filter(|interface| {
+            interface.addr.ip() == IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))
+        }).count());
     }
 }
 
