@@ -540,28 +540,35 @@ mod test {
     use std::error::Error;
     use std::io::Read;
     use std::net::Ipv4Addr;
-    use std::process::Command;
+    use std::process::{Command, Stdio};
     use std::str::FromStr;
     use std::thread;
     use std::time::Duration;
     use ip::IpAddr;
 
-    #[cfg(windows)]
-    fn list_system_addrs() -> Vec<IpAddr> {
-        use std::net::Ipv6Addr;
-
-        let mut process = match Command::new("ipconfig")
-                .stdout(::std::process::Stdio::piped()).spawn() {
-            Err(why) => panic!("couldn't start ipconfig: {}", why.description()),
+    fn list_system_interfaces (cmd: &str, arg: &str) -> String {
+        let start_cmd = if arg == "" {
+            Command::new(cmd).stdout(Stdio::piped()).spawn()
+        } else {
+            Command::new(cmd).arg(arg).stdout(Stdio::piped()).spawn()
+        };
+        let mut process = match start_cmd {
+            Err(why) => {
+                println!("couldn't start cmd {} : {}", cmd, why.description());
+                return "".to_string();
+            }
             Ok(process) => process,
         };
         thread::sleep(Duration::from_millis(1000));
-
         let _ = process.kill();
         let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
-        let s = String::from_utf8(result).unwrap();
+        String::from_utf8(result).unwrap()
+    }
 
-        println!("\n\n     +++++++++++++++++++++++++++++++++++++++ \n\n");
+    #[cfg(windows)]
+    fn list_system_addrs() -> Vec<IpAddr> {
+        use std::net::Ipv6Addr;
+        let s = list_system_interfaces("ipconfig", "");
         let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
             println!("{}", line);
             if line.contains("Address") && !line.contains("Link-local") {
@@ -574,7 +581,7 @@ mod test {
             }
             None
         }).collect();
-        println!("\n\n    --------------------------------------------- \n\n");
+
         let mut found_addrs = Vec::<IpAddr>::new();
         for result in results {
             match result.clone() {
@@ -587,18 +594,7 @@ mod test {
 
     #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
     fn list_system_addrs() -> Vec<IpAddr> {
-        let mut process = match Command::new("ip").arg("addr")
-                .stdout(::std::process::Stdio::piped()).spawn() {
-            Err(why) => panic!("couldn't start ip addr: {}", why.description()),
-            Ok(process) => process,
-        };
-        thread::sleep(Duration::from_millis(1000));
-
-        let _ = process.kill();
-        let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
-        let s = String::from_utf8(result).unwrap();
-
-        println!("\n\n     +++++++++++++++++++++++++++++++++++++++ \n\n");
+        let s = list_system_interfaces("ip", "addr");
         let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
             println!("{}", line);
             if line.contains("inet ") {
@@ -608,7 +604,7 @@ mod test {
             }
             None
         }).collect();
-        println!("\n\n    --------------------------------------------- \n\n");
+
         let mut found_addrs = Vec::<IpAddr>::new();
         for result in results {
             match result.clone() {
@@ -621,18 +617,7 @@ mod test {
 
     #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
     fn list_system_addrs() -> Vec<IpAddr> {
-        let mut process = match Command::new("ifconfig")
-                .stdout(::std::process::Stdio::piped()).spawn() {
-            Err(why) => panic!("couldn't start ifconfig: {}", why.description()),
-            Ok(process) => process,
-        };
-        thread::sleep(Duration::from_millis(1000));
-
-        let _ = process.kill();
-        let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
-        let s = String::from_utf8(result).unwrap();
-
-        println!("\n\n     +++++++++++++++++++++++++++++++++++++++ \n\n");
+        let s = list_system_interfaces("ifconfig", "");
         let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
             println!("{}", line);
             if line.contains("inet addr") {
@@ -642,7 +627,7 @@ mod test {
             }
             None
         }).collect();
-        println!("\n\n    --------------------------------------------- \n\n");
+
         let mut found_addrs = Vec::<IpAddr>::new();
         for result in results {
             match result.clone() {
@@ -667,6 +652,7 @@ mod test {
 
         // each system address shall be listed
         let system_addrs = list_system_addrs();
+        assert!(system_addrs.len() >= 1);
         for addr in system_addrs {
             let mut listed = false;
             println!("\n checking whether {:?} has been properly listed \n", addr);
@@ -677,7 +663,6 @@ mod test {
             }
             assert!(listed);
         }
-
     }
 }
 
