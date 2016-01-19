@@ -599,10 +599,9 @@ mod test {
     fn list_system_addrs() -> Vec<IpAddr> {
         list_system_interfaces("ifconfig", "").lines().filter_map(|line| {
             println!("{}", line);
-            if line.contains("inet addr") {
-                let addr_s : Vec<&str> = line.split(":").collect();
-                let addr : Vec<&str> = addr_s[1].split(" ").collect();
-                return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
+            if line.contains("inet ") {
+                let addr_s : Vec<&str> = line.split_whitespace().collect();
+                return Some(IpAddr::V4(Ipv4Addr::from_str(addr_s[1]).ok().unwrap()));
             }
             None
         }).collect()
