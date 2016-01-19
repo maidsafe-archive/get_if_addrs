@@ -568,8 +568,7 @@ mod test {
     #[cfg(windows)]
     fn list_system_addrs() -> Vec<IpAddr> {
         use std::net::Ipv6Addr;
-        let s = list_system_interfaces("ipconfig", "");
-        let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
+        list_system_interfaces("ipconfig", "").lines().filter_map(|line| {
             println!("{}", line);
             if line.contains("Address") && !line.contains("Link-local") {
                 let addr_s : Vec<&str> = line.split(" : ").collect();
@@ -580,22 +579,12 @@ mod test {
                 }
             }
             None
-        }).collect();
-
-        let mut found_addrs = Vec::<IpAddr>::new();
-        for result in results {
-            match result.clone() {
-                Some(ipaddr) => found_addrs.push(ipaddr),
-                _ => {}
-            }           
-        }
-        found_addrs
+        }).collect()
     }
 
     #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
     fn list_system_addrs() -> Vec<IpAddr> {
-        let s = list_system_interfaces("ip", "addr");
-        let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
+        list_system_interfaces("ip", "addr").lines().filter_map(|line| {
             println!("{}", line);
             if line.contains("inet ") {
                 let addr_s : Vec<&str> = line.split_whitespace().collect();
@@ -603,22 +592,12 @@ mod test {
                 return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
             }
             None
-        }).collect();
-
-        let mut found_addrs = Vec::<IpAddr>::new();
-        for result in results {
-            match result.clone() {
-                Some(ipaddr) => found_addrs.push(ipaddr),
-                _ => {}
-            }           
-        }
-        found_addrs
+        }).collect()
     }
 
     #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
     fn list_system_addrs() -> Vec<IpAddr> {
-        let s = list_system_interfaces("ifconfig", "");
-        let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
+        list_system_interfaces("ifconfig", "").lines().filter_map(|line| {
             println!("{}", line);
             if line.contains("inet addr") {
                 let addr_s : Vec<&str> = line.split(":").collect();
@@ -626,16 +605,7 @@ mod test {
                 return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
             }
             None
-        }).collect();
-
-        let mut found_addrs = Vec::<IpAddr>::new();
-        for result in results {
-            match result.clone() {
-                Some(ipaddr) => found_addrs.push(ipaddr),
-                _ => {}
-            }           
-        }
-        found_addrs
+        }).collect()
     }
 
     #[test]
