@@ -587,7 +587,7 @@ mod test {
 
     #[cfg(not(windows))]
     fn list_system_addrs() -> Vec<IpAddr> {
-        let mut process = match Command::new("ip addr")
+        let mut process = match Command::new("ip").arg("addr")
                 .stdout(::std::process::Stdio::piped()).spawn() {
             Err(why) => panic!("couldn't start ip addr: {}", why.description()),
             Ok(process) => process,
@@ -602,7 +602,7 @@ mod test {
         let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
             println!("{}", line);
             if line.contains("inet ") {
-                let addr_s : Vec<&str> = line.split(" ").collect();
+                let addr_s : Vec<&str> = line.split_whitespace().collect();
                 let addr : Vec<&str> = addr_s[1].split("/").collect();
                 return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
             }
