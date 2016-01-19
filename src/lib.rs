@@ -585,7 +585,7 @@ mod test {
         found_addrs
     }
 
-    #[cfg(not(windows))]
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
     fn list_system_addrs() -> Vec<IpAddr> {
         let mut process = match Command::new("ip").arg("addr")
                 .stdout(::std::process::Stdio::piped()).spawn() {
@@ -604,6 +604,40 @@ mod test {
             if line.contains("inet ") {
                 let addr_s : Vec<&str> = line.split_whitespace().collect();
                 let addr : Vec<&str> = addr_s[1].split("/").collect();
+                return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
+            }
+            None
+        }).collect();
+        println!("\n\n    --------------------------------------------- \n\n");
+        let mut found_addrs = Vec::<IpAddr>::new();
+        for result in results {
+            match result.clone() {
+                Some(ipaddr) => found_addrs.push(ipaddr),
+                _ => {}
+            }           
+        }
+        found_addrs
+    }
+
+    #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
+    fn list_system_addrs() -> Vec<IpAddr> {
+        let mut process = match Command::new("ifconfig")
+                .stdout(::std::process::Stdio::piped()).spawn() {
+            Err(why) => panic!("couldn't start ifconfig: {}", why.description()),
+            Ok(process) => process,
+        };
+        thread::sleep(Duration::from_millis(1000));
+
+        let _ = process.kill();
+        let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
+        let s = String::from_utf8(result).unwrap();
+
+        println!("\n\n     +++++++++++++++++++++++++++++++++++++++ \n\n");
+        let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
+            println!("{}", line);
+            if line.contains("inet addr") {
+                let addr_s : Vec<&str> = line.split(":").collect();
+                let addr : Vec<&str> = addr_s[1].split(" ").collect();
                 return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
             }
             None
