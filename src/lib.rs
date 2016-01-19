@@ -537,22 +537,25 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 #[cfg(test)]
 mod test {
     use super::get_if_addrs;
+    use std::error::Error;
+    use std::io::Read;
+    use std::net::Ipv4Addr;
+    use std::process::Command;
+    use std::str::FromStr;
+    use std::thread;
+    use std::time::Duration;
     use ip::IpAddr;
-    use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[cfg(windows)]
     fn list_system_addrs() -> Vec<IpAddr> {
-        use std::error::Error;
-        use std::io::Read;
-        use std::str::FromStr;
+        use std::net::Ipv6Addr;
 
-        let mut process = match ::std::process::Command::new("ipconfig")
-                                 .stdout(::std::process::Stdio::piped())
-                                 .spawn() {
+        let mut process = match Command::new("ipconfig")
+                .stdout(::std::process::Stdio::piped()).spawn() {
             Err(why) => panic!("couldn't start ipconfig: {}", why.description()),
             Ok(process) => process,
         };
-        ::std::thread::sleep(::std::time::Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(1000));
 
         let _ = process.kill();
         let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
@@ -568,6 +571,40 @@ mod test {
                 } else if line.contains("IPv4") {
                     return Some(IpAddr::V4(Ipv4Addr::from_str(addr_s[1]).ok().unwrap()));
                 }
+            }
+            None
+        }).collect();
+        println!("\n\n    --------------------------------------------- \n\n");
+        let mut found_addrs = Vec::<IpAddr>::new();
+        for result in results {
+            match result.clone() {
+                Some(ipaddr) => found_addrs.push(ipaddr),
+                _ => {}
+            }           
+        }
+        found_addrs
+    }
+
+    #[cfg(not(windows))]
+    fn list_system_addrs() -> Vec<IpAddr> {
+        let mut process = match Command::new("ifconfig")
+                .stdout(::std::process::Stdio::piped()).spawn() {
+            Err(why) => panic!("couldn't start ifconfig: {}", why.description()),
+            Ok(process) => process,
+        };
+        thread::sleep(Duration::from_millis(1000));
+
+        let _ = process.kill();
+        let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
+        let s = String::from_utf8(result).unwrap();
+
+        println!("\n\n     +++++++++++++++++++++++++++++++++++++++ \n\n");
+        let results : Vec<Option<IpAddr>> = s.lines().map(|line| {
+            println!("{}", line);
+            if line.contains("inet addr") {
+                let addr_s : Vec<&str> = line.split(":").collect();
+                let addr : Vec<&str> = addr_s[1].split(" ").collect();
+                return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
             }
             None
         }).collect();
