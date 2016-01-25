@@ -537,12 +537,101 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 #[cfg(test)]
 mod test {
     use super::get_if_addrs;
+    use std::error::Error;
+    use std::io::Read;
+    use std::net::Ipv4Addr;
+    use std::process::{Command, Stdio};
+    use std::str::FromStr;
+    use std::thread;
+    use std::time::Duration;
+    use ip::IpAddr;
+
+    fn list_system_interfaces (cmd: &str, arg: &str) -> String {
+        let start_cmd = if arg == "" {
+            Command::new(cmd).stdout(Stdio::piped()).spawn()
+        } else {
+            Command::new(cmd).arg(arg).stdout(Stdio::piped()).spawn()
+        };
+        let mut process = match start_cmd {
+            Err(why) => {
+                println!("couldn't start cmd {} : {}", cmd, why.description());
+                return "".to_string();
+            }
+            Ok(process) => process,
+        };
+        thread::sleep(Duration::from_millis(1000));
+        let _ = process.kill();
+        let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
+        String::from_utf8(result).unwrap()
+    }
+
+    #[cfg(windows)]
+    fn list_system_addrs() -> Vec<IpAddr> {
+        use std::net::Ipv6Addr;
+        list_system_interfaces("ipconfig", "").lines().filter_map(|line| {
+            println!("{}", line);
+            if line.contains("Address") && !line.contains("Link-local") {
+                let addr_s : Vec<&str> = line.split(" : ").collect();
+                if line.contains("IPv6") {
+                    return Some(IpAddr::V6(Ipv6Addr::from_str(addr_s[1]).ok().unwrap()));
+                } else if line.contains("IPv4") {
+                    return Some(IpAddr::V4(Ipv4Addr::from_str(addr_s[1]).ok().unwrap()));
+                }
+            }
+            None
+        }).collect()
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
+    fn list_system_addrs() -> Vec<IpAddr> {
+        list_system_interfaces("ip", "addr").lines().filter_map(|line| {
+            println!("{}", line);
+            if line.contains("inet ") {
+                let addr_s : Vec<&str> = line.split_whitespace().collect();
+                let addr : Vec<&str> = addr_s[1].split("/").collect();
+                return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
+            }
+            None
+        }).collect()
+    }
+
+    #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
+    fn list_system_addrs() -> Vec<IpAddr> {
+        list_system_interfaces("ifconfig", "").lines().filter_map(|line| {
+            println!("{}", line);
+            if line.contains("inet ") {
+                let addr_s : Vec<&str> = line.split_whitespace().collect();
+                return Some(IpAddr::V4(Ipv4Addr::from_str(addr_s[1]).ok().unwrap()));
+            }
+            None
+        }).collect()
+    }
 
     #[test]
     fn test_get_if_addrs() {
         let ifaces = get_if_addrs().unwrap();
         println!("Local interfaces:");
         println!("{:#?}", ifaces);
+        // at least one loop back address
+        assert!(1 <= ifaces.iter().filter(|interface| interface.is_loopback()).count());
+        // one address of IpV4(127.0.0.1)
+        assert!(1 == ifaces.iter().filter(|interface| {
+            interface.addr.ip() == IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))
+        }).count());
+
+        // each system address shall be listed
+        let system_addrs = list_system_addrs();
+        assert!(system_addrs.len() >= 1);
+        for addr in system_addrs {
+            let mut listed = false;
+            println!("\n checking whether {:?} has been properly listed \n", addr);
+            for interface in ifaces.iter() {
+                if interface.addr.ip() == addr {
+                    listed = true;
+                }
+            }
+            assert!(listed);
+        }
     }
 }
 
