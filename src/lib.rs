@@ -195,6 +195,7 @@ mod getifaddrs_posix {
 
     /// Return a vector of IP details for all the valid interfaces on this host
     #[allow(unsafe_code)]
+    #[allow(trivial_casts)]
     pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
         let mut ret = Vec::<Interface>::new();
         let mut ifaddrs: *mut posix_ifaddrs;
@@ -209,7 +210,7 @@ mod getifaddrs_posix {
             if ifaddr.ifa_addr.is_null() {
                 continue;
             }
-            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name) }.to_string_lossy().into_owned();
+            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name as *const _) }.to_string_lossy().into_owned();
             let addr = match sockaddr_to_ipaddr(ifaddr.ifa_addr) {
                 None => continue,
                 Some(IpAddr::V4(ipv4_addr)) => {
