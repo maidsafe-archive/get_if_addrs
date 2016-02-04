@@ -697,7 +697,7 @@
 <span class='comment'>// Please review the Licences for the specific language governing permissions and limitations</span>
 <span class='comment'>// relating to use of the SAFE Network Software.</span>
 
-<span class='doccomment'>//! #get_if_addrs</span>
+<span class='doccomment'>//! # `get_if_addrs`</span>
 <span class='doccomment'>//! Retrieve interface IP addresses in windows and posix systems</span>
 
 <span class='attribute'>#<span class='op'>!</span>[<span class='ident'>doc</span>(<span class='ident'>html_logo_url</span> <span class='op'>=</span>
@@ -944,7 +944,7 @@
     }
 }
 
-<span class='doccomment'>/// For non-Windows operating system, use this function to get address</span>
+<span class='doccomment'>/// Get a list of all the network interfaces on this machine along with their IP info.</span>
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>windows</span>))]</span>
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_if_addrs</span>() <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Interface</span><span class='op'>&gt;&gt;</span> {
     <span class='ident'>getifaddrs_posix</span>::<span class='ident'>get_if_addrs</span>()
