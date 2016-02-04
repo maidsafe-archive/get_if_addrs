@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-//! #get_if_addrs
+//! # `get_if_addrs`
 //! Retrieve interface IP addresses in windows and posix systems
 
 #![doc(html_logo_url =
@@ -262,7 +262,7 @@ mod getifaddrs_posix {
     }
 }
 
-/// For non-Windows operating system, use this function to get address
+/// Get a list of all the network interfaces on this machine along with their IP info.
 #[cfg(not(windows))]
 pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
     getifaddrs_posix::get_if_addrs()
