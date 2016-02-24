@@ -15,6 +15,16 @@
 
 ## Overview
 
-Retrieve IP addresses from all interfaces on system (excluding loopback)
+Retrieve network interface info for all interfaces on the system.
+
+```rust
+// List all of the machine's network interfaces
+for iface in get_if_addrs::get_if_addrs().unwrap() {
+    println!("{:#?}", iface);
+}
+```
 
 ## Todo Items
+
+  * Create an API for responding to changes in network interfaces.
+
