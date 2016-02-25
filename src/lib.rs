@@ -192,7 +192,7 @@ mod getifaddrs_posix {
         sockaddr_to_ipaddr(ifaddr.ifa_ifu)
     }
 
-    #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
+    #[cfg(any(target_os = "freebsd", target_os = "ios", target_os = "macos", target_os = "openbsd"))]
     fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
         sockaddr_to_ipaddr(ifaddr.ifa_dstaddr)
     }
