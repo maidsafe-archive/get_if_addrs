@@ -41,13 +41,11 @@
 #![cfg_attr(feature="clippy", plugin(clippy))]
 #![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
 
-extern crate ip;
 extern crate c_linked_list;
 extern crate libc;
 
 use std::io;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use ip::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// Details about an interface on this host
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -137,8 +135,7 @@ impl Ifv6Addr {
 mod getifaddrs_posix {
     use super::c_linked_list::CLinkedListMut;
     use super::{Interface, IfAddr, Ifv4Addr, Ifv6Addr};
-    use std::net::{Ipv4Addr, Ipv6Addr};
-    use ip::IpAddr;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use std::{mem, io};
     use std::ffi::CStr;
     use libc::consts::os::bsd44::{AF_INET, AF_INET6};
@@ -276,8 +273,7 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 mod getifaddrs_windows {
     use super::c_linked_list::CLinkedListConst;
     use super::{Interface, IfAddr, Ifv4Addr, Ifv6Addr};
-    use std::net::{Ipv4Addr, Ipv6Addr};
-    use ip::IpAddr;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use std::{io, ptr};
     use std::ffi::CStr;
     use libc::types::common::c95::c_void;
@@ -533,6 +529,7 @@ mod getifaddrs_windows {
         Ok(ret)
     }
 }
+
 #[cfg(windows)]
 /// Get address
 pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
@@ -544,12 +541,11 @@ mod test {
     use super::get_if_addrs;
     use std::error::Error;
     use std::io::Read;
-    use std::net::Ipv4Addr;
+    use std::net::{IpAddr, Ipv4Addr};
     use std::process::{Command, Stdio};
     use std::str::FromStr;
     use std::thread;
     use std::time::Duration;
-    use ip::IpAddr;
 
     fn list_system_interfaces (cmd: &str, arg: &str) -> String {
         let start_cmd = if arg == "" {
