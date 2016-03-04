@@ -1,5 +1,11 @@
 # get_if_addrs - Change Log
 
+## [0.4.0]
+- Replaced ip::IpAddr with std::IpAddr
+- Changed to support BSD
+- Updated lints
+- Documentation fixes
+
 ## [0.3.1]
 - Fix build on ARM
 
