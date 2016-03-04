@@ -9,7 +9,7 @@ repository = "https://github.com/maidsafe/get_if_addrs"
 version = "0.3.1"
 
 [dependencies]
-clippy = {version = "~0.0.37", optional = true}
+clippy = {version = "~0.0.45", optional = true}
 libc = "~0.1.12"
-c_linked_list = "~0.1.0"
+c_linked_list = "~1.1.0"
 
