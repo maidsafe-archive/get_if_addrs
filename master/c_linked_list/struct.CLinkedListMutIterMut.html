@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `CLinkedListConstIter` struct in crate `c_linked_list`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, CLinkedListConstIter">
+    <meta name="description" content="API documentation for the Rust `CLinkedListMutIterMut` struct in crate `c_linked_list`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, CLinkedListMutIterMut">
 
-    <title>c_linked_list::CLinkedListConstIter - Rust</title>
+    <title>c_linked_list::CLinkedListMutIterMut - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
@@ -27,7 +27,7 @@
 
     <nav class="sidebar">
         
-        <p class='location'><a href='index.html'>c_linked_list</a></p><script>window.sidebarCurrent = {name: 'CLinkedListConstIter', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'><a href='index.html'>c_linked_list</a></p><script>window.sidebarCurrent = {name: 'CLinkedListMutIterMut', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
     </nav>
 
     <nav class="sub">
@@ -42,16 +42,16 @@
     </nav>
 
     <section id='main' class="content struct">
-<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>c_linked_list</a>::<wbr><a class='struct' href=''>CLinkedListConstIter</a></span><span class='out-of-band'><span id='render-detail'>
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>c_linked_list</a>::<wbr><a class='struct' href=''>CLinkedListMutIterMut</a></span><span class='out-of-band'><span id='render-detail'>
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-91' class='srclink' href='../src/c_linked_list/lib.rs.html#198-201' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct CLinkedListConstIter&lt;'a, T: 'a, N: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(&amp;T) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*const T</a> + 'a&gt; {
+        </span><a id='src-16' class='srclink' href='../src/c_linked_list/lib.rs.html#38-41' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct CLinkedListMutIterMut&lt;'a, T: 'a, N: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(&amp;T) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*mut T</a> + 'a&gt; {
     // some fields omitted
-}</pre><div class='docblock'><p>Iterator over a <code>CLinkedListConst</code>. Returns immutable references to the nodes of the list.</p>
-</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;'a, T: 'a, N: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(&amp;T) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*const T</a> + 'a&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html' title='core::iter::Iterator'>Iterator</a> for <a class='struct' href='../c_linked_list/struct.CLinkedListConstIter.html' title='c_linked_list::CLinkedListConstIter'>CLinkedListConstIter</a>&lt;'a, T, N&gt;</code></h3><div class='impl-items'><h4 id='assoc_type.Item' class='type'><code>type Item = &amp;'a T</code></h4>
-<h4 id='method.next' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html#method.next' class='fnname'>next</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;'a T&gt;</code></h4>
+}</pre><div class='docblock'><p>Iterator over a <code>CLinkedListMut</code>. Returns mutable references to the nodes of the list.</p>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;'a, T: 'a, N: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(&amp;T) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*mut T</a> + 'a&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html' title='core::iter::Iterator'>Iterator</a> for <a class='struct' href='../c_linked_list/struct.CLinkedListMutIterMut.html' title='c_linked_list::CLinkedListMutIterMut'>CLinkedListMutIterMut</a>&lt;'a, T, N&gt;</code></h3><div class='impl-items'><h4 id='assoc_type.Item' class='type'><code>type Item = &amp;'a mut T</code></h4>
+<h4 id='method.next' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html#method.next' class='fnname'>next</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;'a mut T&gt;</code></h4>
 <h4 id='method.size_hint' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html#method.size_hint' class='fnname'>size_hint</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>&gt;)</a></code></h4>
 <h4 id='method.count' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html#method.count' class='fnname'>count</a>(self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
 <h4 id='method.last' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html#method.last' class='fnname'>last</a>(self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;Self::<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html' title='core::iter::Iterator'>Item</a>&gt;</code></h4>
