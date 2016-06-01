@@ -13,3 +13,6 @@ clippy = {version = "~0.0.45", optional = true}
 libc = "0.2"
 c_linked_list = "~1.1.0"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = "0.2"
+

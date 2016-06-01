@@ -44,6 +44,9 @@
 extern crate c_linked_list;
 extern crate libc;
 
+#[cfg(windows)]
+extern crate winapi;
+
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -276,13 +279,11 @@ mod getifaddrs_windows {
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use std::{io, ptr};
     use std::ffi::CStr;
-    use libc::types::common::c95::c_void;
-    use libc::types::os::arch::c95::{c_char, c_ulong, size_t, c_int};
-    use libc::types::os::arch::extra::*;   // libc source code says this is all the Windows integral types
-    use libc::consts::os::extra::*;        // win32 status code, constants etc
-    use libc::consts::os::bsd44::*;        // the winsock constants
-    use libc::types::os::common::bsd44::*; // the winsock types
+    use libc::{c_void, c_char, c_ulong, size_t, c_int};
     use libc;
+    use winapi::{DWORD, AF_INET, AF_INET6, sockaddr_in6, ERROR_SUCCESS};
+    use winapi::SOCKADDR as sockaddr;
+    use winapi::SOCKADDR_IN as sockaddr_in;
 
     #[repr(C)]
     struct SocketAddress {
@@ -348,35 +349,35 @@ mod getifaddrs_windows {
         if unsafe { *sockaddr }.sa_family as u32 == AF_INET as u32 {
             let ref sa = unsafe { *(sockaddr as *const sockaddr_in) };
             // Ignore all 169.254.x.x addresses as these are not active interfaces
-            if sa.sin_addr.s_addr & 65535 == 0xfea9 {
+            if sa.sin_addr.S_un & 65535 == 0xfea9 {
                 return None;
             }
-            Some(IpAddr::V4(Ipv4Addr::new(((sa.sin_addr.s_addr >> 0) & 255) as u8,
-                                          ((sa.sin_addr.s_addr >> 8) & 255) as u8,
-                                          ((sa.sin_addr.s_addr >> 16) & 255) as u8,
-                                          ((sa.sin_addr.s_addr >> 24) & 255) as u8)))
+            Some(IpAddr::V4(Ipv4Addr::new(((sa.sin_addr.S_un >> 0) & 255) as u8,
+                                          ((sa.sin_addr.S_un >> 8) & 255) as u8,
+                                          ((sa.sin_addr.S_un >> 16) & 255) as u8,
+                                          ((sa.sin_addr.S_un >> 24) & 255) as u8)))
         } else if unsafe { *sockaddr }.sa_family as u32 == AF_INET6 as u32 {
             let ref sa = unsafe { *(sockaddr as *const sockaddr_in6) };
             // Ignore all fe80:: addresses as these are link locals
-            if sa.sin6_addr.s6_addr[0] == 0x80fe {
+            if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
-            Some(IpAddr::V6(Ipv6Addr::new(((sa.sin6_addr.s6_addr[0] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[0] >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[1] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[1] >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[2] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[2] >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[3] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[3] >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[4] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[4] >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[5] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[5] >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[6] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[6] >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[7] & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[7] >> 8) & 255))))
+            Some(IpAddr::V6(Ipv6Addr::new(((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
+                                          ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
+                                          ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
+                                          ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
+                                          ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
+                                          ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
+                                          ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
+                                          ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
+                                          ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255))))
         } else {
             None
         }
@@ -406,7 +407,7 @@ mod getifaddrs_windows {
                                          0x3e,
                                          ptr::null(),
                                          ifaddrs,
-                                         &mut buffersize) as c_int;
+                                         &mut buffersize);
                 match retcode {
                     ERROR_SUCCESS => break,
                     111 => {
