@@ -77,6 +77,8 @@ pub struct Ifv4Addr {
     pub netmask: Ipv4Addr,
     /// The broadcast address of the interface.
     pub broadcast: Option<Ipv4Addr>,
+    /// the mac address of the interface
+    pub mac:String
 }
 
 /// Details about the IPv6 address of an interface on this host
@@ -87,7 +89,9 @@ pub struct Ifv6Addr {
     /// The netmask of the interface.
     pub netmask: Ipv6Addr,
     /// The broadcast address of the interface.
-    pub broadcast: Option<Ipv6Addr>
+    pub broadcast: Option<Ipv6Addr>,  
+    /// the mac address of the interface
+    pub mac:String
 }
 
 impl Interface {
@@ -423,6 +427,7 @@ mod getifaddrs_windows {
         for ifaddr in unsafe { CLinkedListConst::from_ptr(ifaddrs, |a| a.next) }.iter() {
             for addr in unsafe { CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next) }.iter() {
                 let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }.to_string_lossy().into_owned();
+                let mac=get_mac(ifaddr.physical_address,ifaddr.physical_address_length);
 
                 let addr = match sockaddr_to_ipaddr(addr.address.lp_socket_address) {
                     None => continue,
@@ -471,6 +476,7 @@ mod getifaddrs_windows {
                             ip: ipv4_addr,
                             netmask: item_netmask,
                             broadcast: item_broadcast,
+                            mac:mac,
                         })
                     },
                     Some(IpAddr::V6(ipv6_addr)) => {
@@ -515,6 +521,7 @@ mod getifaddrs_windows {
                             ip: ipv6_addr,
                             netmask: item_netmask,
                             broadcast: None,
+                            mac:mac
                         })
                     },
                 };
@@ -528,6 +535,20 @@ mod getifaddrs_windows {
             libc::free(ifaddrs as *mut c_void);
         }
         Ok(ret)
+    }
+
+    pub fn get_mac(physical_address: [c_char; 8],physical_address_length:DWORD)->String{
+        let mut mac=String::from("");
+        let len=physical_address_length as usize;
+        for index in 0..physical_address.len() {
+            if index+1 == len {
+                mac.push_str(&format!("{:02X}",physical_address[index]))
+            }
+            else if index < len {
+                mac.push_str(&format!("{:02X}-",physical_address[index]))
+            }
+        }
+        return if mac.is_empty() {"00-00-00-00-00-00".to_string()} else {mac};
     }
 }
 
