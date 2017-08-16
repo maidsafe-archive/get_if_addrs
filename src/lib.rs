@@ -387,6 +387,33 @@ mod getifaddrs_windows {
         }
     }
 
+    pub fn cacl_net_mask(prefix_length:usize) -> Ipv4Addr {
+        let offset:usize=32-prefix_length;
+        if offset>=32{
+            return Ipv4Addr::from([255,255,255,255]);
+        }else{
+            return Ipv4Addr::from(u32::max_value() << offset);
+        }
+    }
+
+    pub fn is_same_prefix(a:[u8; 4],b: [u8; 4],prefix_length:usize)->bool {
+        let a_bin_str: Vec<String> = a.iter().map(|x| format!("{:08b}", x)).collect();
+        let a_bin_str: String = a_bin_str.join("");
+
+        let b_bin_str: Vec<String> = b.iter().map(|x| format!("{:08b}", x)).collect();
+        let b_bin_str: String = b_bin_str.join("");
+
+        let a_chars: Vec<char> = a_bin_str.chars().collect();
+        let b_chars: Vec<char> = b_bin_str.chars().collect();
+        
+        for i in 0..prefix_length {
+            if a_chars.get(i)!= b_chars.get(i) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // trivial_numeric_casts lint may become allow by default.
     // Refer: https://github.com/rust-lang/rfcs/issues/1020
     /// Return a vector of IP details for all the valid interfaces on this host
@@ -439,35 +466,23 @@ mod getifaddrs_windows {
                             let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V4(ref a)) => {
-                                    let mut netmask: [u8; 4] = [0; 4];
-                                    for n in 0..((prefix.prefix_length as usize + 7) / 8) {
-                                        let x_byte = ipv4_addr.octets()[n];
-                                        let y_byte = a.octets()[n];
-                                        for m in 0..8 {
-                                            if (n * 8) + m > prefix.prefix_length as usize {
-                                                break;
-                                            }
-                                            let bit = 1 << m;
-                                            if (x_byte & bit) == (y_byte & bit) {
-                                                netmask[n] = netmask[n] | bit;
-                                            } else {
-                                                continue 'prefixloopv4;
-                                            }
+                                    let prefix_length=prefix.prefix_length as usize;
+                                    if is_same_prefix(a.octets(),ipv4_addr.octets(),prefix_length){
+                                        let netmask = cacl_net_mask(prefix_length).octets();
+                                        let mut broadcast: [u8; 4] = ipv4_addr.octets();
+                                        for n in 0..4 {
+                                            broadcast[n] = broadcast[n] | !netmask[n];
                                         }
+                                        item_broadcast = Some(Ipv4Addr::new(broadcast[0],
+                                                                            broadcast[1],
+                                                                            broadcast[2],
+                                                                            broadcast[3]));
+                                        item_netmask=Ipv4Addr::from(netmask);
+                                        break 'prefixloopv4;
+                                        
+                                    }else{
+                                        continue 'prefixloopv4;
                                     }
-                                    item_netmask = Ipv4Addr::new(netmask[0],
-                                                                 netmask[1],
-                                                                 netmask[2],
-                                                                 netmask[3]);
-                                    let mut broadcast: [u8; 4] = ipv4_addr.octets();
-                                    for n in 0..4 {
-                                        broadcast[n] = broadcast[n] | !netmask[n];
-                                    }
-                                    item_broadcast = Some(Ipv4Addr::new(broadcast[0],
-                                                                        broadcast[1],
-                                                                        broadcast[2],
-                                                                        broadcast[3]));
-                                    break 'prefixloopv4;
                                 },
                                 _ => continue,
                             };
