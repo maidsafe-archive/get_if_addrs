@@ -27,7 +27,7 @@
 // https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
 #![forbid(bad_style, exceeding_bitshifts, mutable_transmutes, no_mangle_const_items,
           unknown_crate_types, warnings)]
-#![deny(deprecated, drop_with_repr_extern, improper_ctypes, missing_docs,
+#![deny(deprecated, improper_ctypes, missing_docs,
         non_shorthand_field_patterns, overflowing_literals, plugin_as_library,
         private_no_mangle_fns, private_no_mangle_statics, stable_features, unconditional_recursion,
         unknown_lints, unsafe_code, unused, unused_allocation, unused_attributes,
@@ -77,6 +77,8 @@ pub struct Ifv4Addr {
     pub netmask: Ipv4Addr,
     /// The broadcast address of the interface.
     pub broadcast: Option<Ipv4Addr>,
+    /// the mac address of the interface
+    pub mac:String
 }
 
 /// Details about the IPv6 address of an interface on this host
@@ -87,7 +89,9 @@ pub struct Ifv6Addr {
     /// The netmask of the interface.
     pub netmask: Ipv6Addr,
     /// The broadcast address of the interface.
-    pub broadcast: Option<Ipv6Addr>
+    pub broadcast: Option<Ipv6Addr>,  
+    /// the mac address of the interface
+    pub mac:String
 }
 
 impl Interface {
@@ -383,6 +387,33 @@ mod getifaddrs_windows {
         }
     }
 
+    pub fn cacl_net_mask(prefix_length:usize) -> Ipv4Addr {
+        let offset:usize=32-prefix_length;
+        if offset>=32{
+            return Ipv4Addr::from([255,255,255,255]);
+        }else{
+            return Ipv4Addr::from(u32::max_value() << offset);
+        }
+    }
+
+    pub fn is_same_prefix(a:[u8; 4],b: [u8; 4],prefix_length:usize)->bool {
+        let a_bin_str: Vec<String> = a.iter().map(|x| format!("{:08b}", x)).collect();
+        let a_bin_str: String = a_bin_str.join("");
+
+        let b_bin_str: Vec<String> = b.iter().map(|x| format!("{:08b}", x)).collect();
+        let b_bin_str: String = b_bin_str.join("");
+
+        let a_chars: Vec<char> = a_bin_str.chars().collect();
+        let b_chars: Vec<char> = b_bin_str.chars().collect();
+        
+        for i in 0..prefix_length {
+            if a_chars.get(i)!= b_chars.get(i) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // trivial_numeric_casts lint may become allow by default.
     // Refer: https://github.com/rust-lang/rfcs/issues/1020
     /// Return a vector of IP details for all the valid interfaces on this host
@@ -423,6 +454,7 @@ mod getifaddrs_windows {
         for ifaddr in unsafe { CLinkedListConst::from_ptr(ifaddrs, |a| a.next) }.iter() {
             for addr in unsafe { CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next) }.iter() {
                 let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }.to_string_lossy().into_owned();
+                let mac=get_mac(ifaddr.physical_address,ifaddr.physical_address_length);
 
                 let addr = match sockaddr_to_ipaddr(addr.address.lp_socket_address) {
                     None => continue,
@@ -434,35 +466,23 @@ mod getifaddrs_windows {
                             let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V4(ref a)) => {
-                                    let mut netmask: [u8; 4] = [0; 4];
-                                    for n in 0..((prefix.prefix_length as usize + 7) / 8) {
-                                        let x_byte = ipv4_addr.octets()[n];
-                                        let y_byte = a.octets()[n];
-                                        for m in 0..8 {
-                                            if (n * 8) + m > prefix.prefix_length as usize {
-                                                break;
-                                            }
-                                            let bit = 1 << m;
-                                            if (x_byte & bit) == (y_byte & bit) {
-                                                netmask[n] = netmask[n] | bit;
-                                            } else {
-                                                continue 'prefixloopv4;
-                                            }
+                                    let prefix_length=prefix.prefix_length as usize;
+                                    if is_same_prefix(a.octets(),ipv4_addr.octets(),prefix_length){
+                                        let netmask = cacl_net_mask(prefix_length).octets();
+                                        let mut broadcast: [u8; 4] = ipv4_addr.octets();
+                                        for n in 0..4 {
+                                            broadcast[n] = broadcast[n] | !netmask[n];
                                         }
+                                        item_broadcast = Some(Ipv4Addr::new(broadcast[0],
+                                                                            broadcast[1],
+                                                                            broadcast[2],
+                                                                            broadcast[3]));
+                                        item_netmask=Ipv4Addr::from(netmask);
+                                        break 'prefixloopv4;
+                                        
+                                    }else{
+                                        continue 'prefixloopv4;
                                     }
-                                    item_netmask = Ipv4Addr::new(netmask[0],
-                                                                 netmask[1],
-                                                                 netmask[2],
-                                                                 netmask[3]);
-                                    let mut broadcast: [u8; 4] = ipv4_addr.octets();
-                                    for n in 0..4 {
-                                        broadcast[n] = broadcast[n] | !netmask[n];
-                                    }
-                                    item_broadcast = Some(Ipv4Addr::new(broadcast[0],
-                                                                        broadcast[1],
-                                                                        broadcast[2],
-                                                                        broadcast[3]));
-                                    break 'prefixloopv4;
                                 },
                                 _ => continue,
                             };
@@ -471,6 +491,7 @@ mod getifaddrs_windows {
                             ip: ipv4_addr,
                             netmask: item_netmask,
                             broadcast: item_broadcast,
+                            mac:mac,
                         })
                     },
                     Some(IpAddr::V6(ipv6_addr)) => {
@@ -515,6 +536,7 @@ mod getifaddrs_windows {
                             ip: ipv6_addr,
                             netmask: item_netmask,
                             broadcast: None,
+                            mac:mac
                         })
                     },
                 };
@@ -528,6 +550,20 @@ mod getifaddrs_windows {
             libc::free(ifaddrs as *mut c_void);
         }
         Ok(ret)
+    }
+
+    pub fn get_mac(physical_address: [c_char; 8],physical_address_length:DWORD)->String{
+        let mut mac=String::from("");
+        let len=physical_address_length as usize;
+        for index in 0..physical_address.len() {
+            if index+1 == len {
+                mac.push_str(&format!("{:02X}",physical_address[index]))
+            }
+            else if index < len {
+                mac.push_str(&format!("{:02X}-",physical_address[index]))
+            }
+        }
+        return if mac.is_empty() {"00-00-00-00-00-00".to_string()} else {mac};
     }
 }
 
