@@ -15,11 +15,11 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-//! ifaddrs
+//! get_if_addrs
 #![doc(html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/
 maidsafe_logo.png",
       html_favicon_url = "http://maidsafe.net/img/favicon.ico",
-      html_root_url = "http://maidsafe.github.io/ifaddrs")]
+      html_root_url = "http://maidsafe.github.io/get_if_addrs")]
 // For explanation of lint checks, run `rustc -W help` or see
 // https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
 #![forbid(exceeding_bitshifts, mutable_transmutes, no_mangle_const_items, unknown_crate_types,
@@ -48,7 +48,7 @@ extern crate unwrap;
 extern crate libc;
 extern crate c_linked_list;
 #[cfg(target_os = "android")]
-extern crate ifaddrs_sys;
+extern crate get_if_addrs_sys;
 
 /// Details about an interface on this host
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]

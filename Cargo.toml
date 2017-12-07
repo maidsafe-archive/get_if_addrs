@@ -17,9 +17,9 @@ c_linked_list = "~1.1.0"
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = "0.2"
 
-[target.'cfg(target_os = "android")'.dependencies.ifaddrs-sys]
+[target.'cfg(target_os = "android")'.dependencies.get_if_addrs-sys]
 version = "0.1.0"
-path = "ifaddrs-sys"
+path = "get_if_addrs-sys"
 
 [dev-dependencies]
 unwrap = "~1.1.0"
