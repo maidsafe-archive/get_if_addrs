@@ -1,0 +1,21 @@
+[package]
+authors = ["MaidSafe Developers <dev@maidsafe.net>"]
+build = "build.rs"
+description = "ifaddrs sys crate"
+documentation = "https://docs.rs/ifaddrs"
+homepage = "https://maidsafe.net"
+license = "GPL-3.0"
+links = "ifaddrs"
+name = "ifaddrs-sys"
+repository = "https://github.com/maidsafe/ifaddrs"
+version = "0.1.0"
+
+[lib]
+name = "ifaddrs_sys"
+path = "lib.rs"
+
+[dependencies]
+libc = "~0.2.28"
+
+[build-dependencies]
+gcc = "0.3"
