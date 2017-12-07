@@ -140,15 +140,15 @@ mod getifaddrs_posix {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
     use libc::{AF_INET, AF_INET6};
     #[cfg(target_os = "android")]
-    use ifaddrs_sys::ifaddrs as posix_ifaddrs;
+    use get_if_addrs_sys::ifaddrs as posix_ifaddrs;
     #[cfg(not(target_os = "android"))]
     use libc::ifaddrs as posix_ifaddrs;
     #[cfg(target_os = "android")]
-    use ifaddrs_sys::getifaddrs as posix_getifaddrs;
+    use get_if_addrs_sys::getifaddrs as posix_getifaddrs;
     #[cfg(not(target_os = "android"))]
     use libc::getifaddrs as posix_getifaddrs;
     #[cfg(target_os = "android")]
-    use ifaddrs_sys::freeifaddrs as posix_freeifaddrs;
+    use get_if_addrs_sys::freeifaddrs as posix_freeifaddrs;
     #[cfg(not(target_os = "android"))]
     use libc::freeifaddrs as posix_freeifaddrs;
     use libc::sockaddr as posix_sockaddr;
@@ -156,13 +156,6 @@ mod getifaddrs_posix {
     use libc::sockaddr_in6 as posix_sockaddr_in6;
     use std::{io, mem};
     use std::ffi::CStr;
-    use libc::{AF_INET, AF_INET6};
-    use libc::getifaddrs as posix_getifaddrs;
-    use libc::freeifaddrs as posix_freeifaddrs;
-    use libc::ifaddrs as posix_ifaddrs;
-    use libc::sockaddr as posix_sockaddr;
-    use libc::sockaddr_in as posix_sockaddr_in;
-    use libc::sockaddr_in6 as posix_sockaddr_in6;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[allow(unsafe_code)]
@@ -184,22 +177,24 @@ mod getifaddrs_posix {
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
-            Some(IpAddr::V6(Ipv6Addr::new(((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255))))
+            Some(IpAddr::V6(Ipv6Addr::new(
+                ((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255),
+            )))
         } else {
             None
         }
@@ -382,32 +377,36 @@ mod getifaddrs_windows {
             if sa.sin_addr.S_un & 65535 == 0xfea9 {
                 return None;
             }
-            Some(IpAddr::V4(Ipv4Addr::new(((sa.sin_addr.S_un >> 0) & 255) as u8,
-                                          ((sa.sin_addr.S_un >> 8) & 255) as u8,
-                                          ((sa.sin_addr.S_un >> 16) & 255) as u8,
-                                          ((sa.sin_addr.S_un >> 24) & 255) as u8)))
+            Some(IpAddr::V4(Ipv4Addr::new(
+                ((sa.sin_addr.S_un >> 0) & 255) as u8,
+                ((sa.sin_addr.S_un >> 8) & 255) as u8,
+                ((sa.sin_addr.S_un >> 16) & 255) as u8,
+                ((sa.sin_addr.S_un >> 24) & 255) as u8,
+            )))
         } else if unsafe { *sockaddr }.sa_family as u32 == AF_INET6 as u32 {
             let sa = &unsafe { *(sockaddr as *const sockaddr_in6) };
             // Ignore all fe80:: addresses as these are link locals
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
-            Some(IpAddr::V6(Ipv6Addr::new(((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255))))
+            Some(IpAddr::V6(Ipv6Addr::new(
+                ((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255),
+            )))
         } else {
             None
         }
@@ -427,17 +426,18 @@ mod getifaddrs_windows {
                 if ifaddrs.is_null() {
                     panic!("Failed to allocate buffer in get_if_addrs()");
                 }
-                let retcode =
-                    GetAdaptersAddresses(0,
-                                         // GAA_FLAG_SKIP_ANYCAST       |
-                                         // GAA_FLAG_SKIP_MULTICAST     |
-                                         // GAA_FLAG_SKIP_DNS_SERVER    |
-                                         // GAA_FLAG_INCLUDE_PREFIX     |
-                                         // GAA_FLAG_SKIP_FRIENDLY_NAME
-                                         0x3e,
-                                         ptr::null(),
-                                         ifaddrs,
-                                         &mut buffersize);
+                let retcode = GetAdaptersAddresses(
+                    0,
+                    // GAA_FLAG_SKIP_ANYCAST       |
+                    // GAA_FLAG_SKIP_MULTICAST     |
+                    // GAA_FLAG_SKIP_DNS_SERVER    |
+                    // GAA_FLAG_INCLUDE_PREFIX     |
+                    // GAA_FLAG_SKIP_FRIENDLY_NAME
+                    0x3e,
+                    ptr::null(),
+                    ifaddrs,
+                    &mut buffersize,
+                );
                 match retcode {
                     ERROR_SUCCESS => break,
                     111 => {
