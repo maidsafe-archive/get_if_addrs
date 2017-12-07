@@ -4,7 +4,7 @@
 
 |Crate|Documentation|Linux/OS X|Windows|Issues|
 |:---:|:-----------:|:--------:|:-----:|:----:|
-|[![](http://meritbadge.herokuapp.com/ifaddrs)](https://crates.io/crates/ifaddrs)|[![Documentation](https://docs.rs/ifaddrs/badge.svg)](https://docs.rs/ifaddrs)|[![Build Status](https://travis-ci.org/maidsafe/ifaddrs.svg?branch=master)](https://travis-ci.org/maidsafe/ifaddrs)|[![Build status](https://ci.appveyor.com/api/projects/status/j773wvtxqy9eemue/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/ifaddrs/branch/master)|[![Stories in Ready](https://badge.waffle.io/maidsafe/ifaddrs.png?label=ready&title=Ready)](https://waffle.io/maidsafe/ifaddrs)|
+|[![](http://meritbadge.herokuapp.com/get_if_addrs)](https://crates.io/crates/get_if_addrs)|[![Documentation](https://docs.rs/get_if_addrs/badge.svg)](https://docs.rs/get_if_addrs)|[![Build Status](https://travis-ci.org/maidsafe/get_if_addrs.svg?branch=master)](https://travis-ci.org/maidsafe/get_if_addrs)|[![Build status](https://ci.appveyor.com/api/projects/status/j773wvtxqy9eemue/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/get_if_addrs/branch/master)|[![Stories in Ready](https://badge.waffle.io/maidsafe/get_if_addrs.png?label=ready&title=Ready)](https://waffle.io/maidsafe/get_if_addrs)|
 
 | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
 |:----------------------------------------:|:-------------------------------------------:|:----------------------------------------------:|

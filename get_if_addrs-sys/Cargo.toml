@@ -1,17 +1,17 @@
 [package]
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 build = "build.rs"
-description = "ifaddrs sys crate"
-documentation = "https://docs.rs/ifaddrs"
+description = "get_if_addrs sys crate"
+documentation = "https://docs.rs/get_if_addrs"
 homepage = "https://maidsafe.net"
 license = "GPL-3.0"
-links = "ifaddrs"
-name = "ifaddrs-sys"
-repository = "https://github.com/maidsafe/ifaddrs"
+links = "get_if_addrs"
+name = "get_if_addrs-sys"
+repository = "https://github.com/maidsafe/get_if_addrs"
 version = "0.1.0"
 
 [lib]
-name = "ifaddrs_sys"
+name = "get_if_addrs"
 path = "lib.rs"
 
 [dependencies]
