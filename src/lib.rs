@@ -95,6 +95,11 @@ impl Interface {
     pub fn is_loopback(&self) -> bool {
         self.addr.is_loopback()
     }
+
+    /// Get the IP address of this interface.
+    pub fn ip(&self) -> IpAddr {
+        self.addr.ip()
+    }
 }
 
 impl IfAddr {
