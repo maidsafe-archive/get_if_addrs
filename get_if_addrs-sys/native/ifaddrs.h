@@ -26,6 +26,10 @@
 #ifndef	_IFADDRS_H_
 #define	_IFADDRS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct ifaddrs {
 	struct ifaddrs  *ifa_next;
 	char		*ifa_name;
@@ -50,5 +54,9 @@ __BEGIN_DECLS
 extern int getifaddrs(struct ifaddrs **ifap);
 extern void freeifaddrs(struct ifaddrs *ifa);
 __END_DECLS
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
