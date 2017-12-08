@@ -1,12 +1,12 @@
-// Copyright 2015 MaidSafe.net limited.
+// Copyright 2017 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
 // licence you accepted on initial access to the Software (the "Licences").
 //
 // By contributing code to the SAFE Network Software, or to this project generally, you agree to be
-// bound by the terms of the MaidSafe Contributor Agreement, version 1.0.  This, along with the
-// Licenses can be found in the root directory of this project at LICENSE, COPYING and CONTRIBUTOR.
+// bound by the terms of the MaidSafe Contributor Agreement.  This, along with the Licenses can be
+// found in the root directory of this project at LICENSE, COPYING and CONTRIBUTOR.
 //
 // Unless required by applicable law or agreed to in writing, the SAFE Network Software distributed
 // under the GPL Licence is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -15,40 +15,40 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-//! # `get_if_addrs`
-//! Retrieve interface IP addresses in windows and posix systems
-
-#![doc(html_logo_url =
-           "https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png",
-       html_favicon_url = "http://maidsafe.net/img/favicon.ico",
-       html_root_url = "http://maidsafe.github.io/get_if_addrs/")]
-
+//! get_if_addrs
+#![doc(html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/
+maidsafe_logo.png",
+      html_favicon_url = "http://maidsafe.net/img/favicon.ico",
+      html_root_url = "http://maidsafe.github.io/get_if_addrs")]
 // For explanation of lint checks, run `rustc -W help` or see
 // https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
-#![forbid(bad_style, exceeding_bitshifts, mutable_transmutes, no_mangle_const_items,
-          unknown_crate_types, warnings)]
-#![deny(deprecated, drop_with_repr_extern, improper_ctypes, missing_docs,
-        non_shorthand_field_patterns, overflowing_literals, plugin_as_library,
-        private_no_mangle_fns, private_no_mangle_statics, stable_features, unconditional_recursion,
-        unknown_lints, unsafe_code, unused, unused_allocation, unused_attributes,
-        unused_comparisons, unused_features, unused_parens, while_true)]
+#![forbid(exceeding_bitshifts, mutable_transmutes, no_mangle_const_items, unknown_crate_types,
+         warnings)]
+#![deny(bad_style, deprecated, improper_ctypes, missing_docs, non_shorthand_field_patterns,
+       overflowing_literals, plugin_as_library, private_no_mangle_fns, private_no_mangle_statics,
+       stable_features, unconditional_recursion, unknown_lints, unsafe_code, unused,
+       unused_allocation, unused_attributes, unused_comparisons, unused_features, unused_parens,
+       while_true)]
 #![warn(trivial_casts, trivial_numeric_casts, unused_extern_crates, unused_import_braces,
-        unused_qualifications, unused_results)]
-#![allow(box_pointers, fat_ptr_transmutes, missing_copy_implementations,
-         missing_debug_implementations, variant_size_differences)]
-
-#![cfg_attr(feature="clippy", feature(plugin))]
-#![cfg_attr(feature="clippy", plugin(clippy))]
-#![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
-
-extern crate c_linked_list;
-extern crate libc;
+       unused_qualifications, unused_results)]
+#![allow(box_pointers, missing_copy_implementations, missing_debug_implementations,
+         variant_size_differences)]
+#![cfg_attr(feature = "cargo-clippy",
+           deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used))]
+#![cfg_attr(feature = "cargo-clippy", allow(use_debug, too_many_arguments))]
 
 #[cfg(windows)]
 extern crate winapi;
 
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+#[cfg(test)]
+#[macro_use]
+extern crate unwrap;
+extern crate libc;
+extern crate c_linked_list;
+#[cfg(target_os = "android")]
+extern crate get_if_addrs_sys;
 
 /// Details about an interface on this host
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -68,7 +68,7 @@ pub enum IfAddr {
     V6(Ifv6Addr),
 }
 
-/// Details about the IPv4 address of an interface on this host
+/// Details about the ipv4 address of an interface on this host
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Ifv4Addr {
     /// The IP address of the interface.
@@ -79,7 +79,7 @@ pub struct Ifv4Addr {
     pub broadcast: Option<Ipv4Addr>,
 }
 
-/// Details about the IPv6 address of an interface on this host
+/// Details about the ipv6 address of an interface on this host
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Ifv6Addr {
     /// The IP address of the interface.
@@ -87,7 +87,7 @@ pub struct Ifv6Addr {
     /// The netmask of the interface.
     pub netmask: Ipv6Addr,
     /// The broadcast address of the interface.
-    pub broadcast: Option<Ipv6Addr>
+    pub broadcast: Option<Ipv6Addr>,
 }
 
 impl Interface {
@@ -136,18 +136,27 @@ impl Ifv6Addr {
 
 #[cfg(not(windows))]
 mod getifaddrs_posix {
-    use super::c_linked_list::CLinkedListMut;
-    use super::{Interface, IfAddr, Ifv4Addr, Ifv6Addr};
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-    use std::{mem, io};
-    use std::ffi::CStr;
+    use c_linked_list::CLinkedListMut;
+    use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
     use libc::{AF_INET, AF_INET6};
-    use libc::getifaddrs as posix_getifaddrs;
-    use libc::freeifaddrs as posix_freeifaddrs;
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::ifaddrs as posix_ifaddrs;
+    #[cfg(not(target_os = "android"))]
     use libc::ifaddrs as posix_ifaddrs;
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::getifaddrs as posix_getifaddrs;
+    #[cfg(not(target_os = "android"))]
+    use libc::getifaddrs as posix_getifaddrs;
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::freeifaddrs as posix_freeifaddrs;
+    #[cfg(not(target_os = "android"))]
+    use libc::freeifaddrs as posix_freeifaddrs;
     use libc::sockaddr as posix_sockaddr;
     use libc::sockaddr_in as posix_sockaddr_in;
     use libc::sockaddr_in6 as posix_sockaddr_in6;
+    use std::{io, mem};
+    use std::ffi::CStr;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[allow(unsafe_code)]
     fn sockaddr_to_ipaddr(sockaddr: *const posix_sockaddr) -> Option<IpAddr> {
@@ -156,32 +165,36 @@ mod getifaddrs_posix {
         }
         if unsafe { *sockaddr }.sa_family as u32 == AF_INET as u32 {
             let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in) };
-            Some(IpAddr::V4(Ipv4Addr::new(((sa.sin_addr.s_addr) & 255) as u8,
-                                          ((sa.sin_addr.s_addr >> 8) & 255) as u8,
-                                          ((sa.sin_addr.s_addr >> 16) & 255) as u8,
-                                          ((sa.sin_addr.s_addr >> 24) & 255) as u8)))
+            Some(IpAddr::V4(Ipv4Addr::new(
+                ((sa.sin_addr.s_addr) & 255) as u8,
+                ((sa.sin_addr.s_addr >> 8) & 255) as u8,
+                ((sa.sin_addr.s_addr >> 16) & 255) as u8,
+                ((sa.sin_addr.s_addr >> 24) & 255) as u8,
+            )))
         } else if unsafe { *sockaddr }.sa_family as u32 == AF_INET6 as u32 {
             let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in6) };
             // Ignore all fe80:: addresses as these are link locals
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
-            Some(IpAddr::V6(Ipv6Addr::new(((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255))))
+            Some(IpAddr::V6(Ipv6Addr::new(
+                ((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255),
+            )))
         } else {
             None
         }
@@ -192,7 +205,8 @@ mod getifaddrs_posix {
         sockaddr_to_ipaddr(ifaddr.ifa_ifu)
     }
 
-    #[cfg(any(target_os = "freebsd", target_os = "ios", target_os = "macos", target_os = "openbsd"))]
+    #[cfg(any(target_os = "freebsd", target_os = "ios", target_os = "macos",
+                target_os = "openbsd"))]
     fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
         sockaddr_to_ipaddr(ifaddr.ifa_dstaddr)
     }
@@ -214,7 +228,9 @@ mod getifaddrs_posix {
             if ifaddr.ifa_addr.is_null() {
                 continue;
             }
-            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name as *const _) }.to_string_lossy().into_owned();
+            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name as *const _) }
+                .to_string_lossy()
+                .into_owned();
             let addr = match sockaddr_to_ipaddr(ifaddr.ifa_addr) {
                 None => continue,
                 Some(IpAddr::V4(ipv4_addr)) => {
@@ -222,37 +238,39 @@ mod getifaddrs_posix {
                         Some(IpAddr::V4(netmask)) => netmask,
                         _ => Ipv4Addr::new(0, 0, 0, 0),
                     };
-                    let broadcast = match (ifaddr.ifa_flags & 2) != 0 {
-                        true => match do_broadcast(ifaddr) {
+                    let broadcast = if (ifaddr.ifa_flags & 2) != 0 {
+                        match do_broadcast(ifaddr) {
                             Some(IpAddr::V4(broadcast)) => Some(broadcast),
                             _ => None,
-                        },
-                        false => None,
+                        }
+                    } else {
+                        None
                     };
                     IfAddr::V4(Ifv4Addr {
                         ip: ipv4_addr,
                         netmask: netmask,
                         broadcast: broadcast,
                     })
-                },
+                }
                 Some(IpAddr::V6(ipv6_addr)) => {
                     let netmask = match sockaddr_to_ipaddr(ifaddr.ifa_netmask) {
                         Some(IpAddr::V6(netmask)) => netmask,
                         _ => Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0),
                     };
-                    let broadcast = match (ifaddr.ifa_flags & 2) != 0 {
-                        true => match do_broadcast(ifaddr) {
+                    let broadcast = if (ifaddr.ifa_flags & 2) != 0 {
+                        match do_broadcast(ifaddr) {
                             Some(IpAddr::V6(broadcast)) => Some(broadcast),
                             _ => None,
-                        },
-                        false => None,
+                        }
+                    } else {
+                        None
                     };
                     IfAddr::V6(Ifv6Addr {
                         ip: ipv6_addr,
                         netmask: netmask,
                         broadcast: broadcast,
                     })
-                },
+                }
             };
             ret.push(Interface {
                 name: name,
@@ -274,16 +292,16 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 
 #[cfg(windows)]
 mod getifaddrs_windows {
-    use super::c_linked_list::CLinkedListConst;
-    use super::{Interface, IfAddr, Ifv4Addr, Ifv6Addr};
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    use c_linked_list::CLinkedListConst;
+    use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
+    use libc;
+    use libc::{c_int, c_void, c_char, c_ulong, size_t};
     use std::{io, ptr};
     use std::ffi::CStr;
-    use libc::{c_void, c_char, c_ulong, size_t, c_int};
-    use libc;
     use winapi::{DWORD, AF_INET, AF_INET6, sockaddr_in6, ERROR_SUCCESS};
     use winapi::SOCKADDR as sockaddr;
     use winapi::SOCKADDR_IN as sockaddr_in;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[repr(C)]
     struct SocketAddress {
@@ -330,15 +348,16 @@ mod getifaddrs_windows {
         // Loads more follows, but I'm not bothering to map these for now
         pub first_prefix: *const IpAdapterPrefix,
     }
-    #[link(name="Iphlpapi")]
+    #[link(name = "Iphlpapi")]
     extern "system" {
         /// get adapter's addresses
-        fn GetAdaptersAddresses(family: c_ulong,
-                                flags: c_ulong,
-                                reserved: *const c_void,
-                                addresses: *const IpAdapterAddresses,
-                                size: *mut c_ulong)
-                                -> c_ulong;
+        fn GetAdaptersAddresses(
+            family: c_ulong,
+            flags: c_ulong,
+            reserved: *const c_void,
+            addresses: *const IpAdapterAddresses,
+            size: *mut c_ulong,
+        ) -> c_ulong;
     }
 
     #[allow(unsafe_code)]
@@ -347,37 +366,41 @@ mod getifaddrs_windows {
             return None;
         }
         if unsafe { *sockaddr }.sa_family as u32 == AF_INET as u32 {
-            let ref sa = unsafe { *(sockaddr as *const sockaddr_in) };
+            let sa = &unsafe { *(sockaddr as *const sockaddr_in) };
             // Ignore all 169.254.x.x addresses as these are not active interfaces
             if sa.sin_addr.S_un & 65535 == 0xfea9 {
                 return None;
             }
-            Some(IpAddr::V4(Ipv4Addr::new(((sa.sin_addr.S_un >> 0) & 255) as u8,
-                                          ((sa.sin_addr.S_un >> 8) & 255) as u8,
-                                          ((sa.sin_addr.S_un >> 16) & 255) as u8,
-                                          ((sa.sin_addr.S_un >> 24) & 255) as u8)))
+            Some(IpAddr::V4(Ipv4Addr::new(
+                ((sa.sin_addr.S_un >> 0) & 255) as u8,
+                ((sa.sin_addr.S_un >> 8) & 255) as u8,
+                ((sa.sin_addr.S_un >> 16) & 255) as u8,
+                ((sa.sin_addr.S_un >> 24) & 255) as u8,
+            )))
         } else if unsafe { *sockaddr }.sa_family as u32 == AF_INET6 as u32 {
-            let ref sa = unsafe { *(sockaddr as *const sockaddr_in6) };
+            let sa = &unsafe { *(sockaddr as *const sockaddr_in6) };
             // Ignore all fe80:: addresses as these are link locals
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
-            Some(IpAddr::V6(Ipv6Addr::new(((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
-                                          ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
-                                          ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255))))
+            Some(IpAddr::V6(Ipv6Addr::new(
+                ((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
+                ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
+                    ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255),
+            )))
         } else {
             None
         }
@@ -397,22 +420,23 @@ mod getifaddrs_windows {
                 if ifaddrs.is_null() {
                     panic!("Failed to allocate buffer in get_if_addrs()");
                 }
-                let retcode =
-                    GetAdaptersAddresses(0,
-                                         // GAA_FLAG_SKIP_ANYCAST       |
-                                         // GAA_FLAG_SKIP_MULTICAST     |
-                                         // GAA_FLAG_SKIP_DNS_SERVER    |
-                                         // GAA_FLAG_INCLUDE_PREFIX     |
-                                         // GAA_FLAG_SKIP_FRIENDLY_NAME
-                                         0x3e,
-                                         ptr::null(),
-                                         ifaddrs,
-                                         &mut buffersize);
+                let retcode = GetAdaptersAddresses(
+                    0,
+                    // GAA_FLAG_SKIP_ANYCAST       |
+                    // GAA_FLAG_SKIP_MULTICAST     |
+                    // GAA_FLAG_SKIP_DNS_SERVER    |
+                    // GAA_FLAG_INCLUDE_PREFIX     |
+                    // GAA_FLAG_SKIP_FRIENDLY_NAME
+                    0x3e,
+                    ptr::null(),
+                    ifaddrs,
+                    &mut buffersize,
+                );
                 match retcode {
                     ERROR_SUCCESS => break,
                     111 => {
                         libc::free(ifaddrs as *mut c_void);
-                        buffersize = buffersize * 2;
+                        buffersize *= 2;
                         continue;
                     }
                     _ => return Err(io::Error::last_os_error()),
@@ -421,8 +445,13 @@ mod getifaddrs_windows {
         }
 
         for ifaddr in unsafe { CLinkedListConst::from_ptr(ifaddrs, |a| a.next) }.iter() {
-            for addr in unsafe { CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next) }.iter() {
-                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }.to_string_lossy().into_owned();
+            for addr in unsafe {
+                CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next)
+            }.iter()
+            {
+                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }
+                    .to_string_lossy()
+                    .into_owned();
 
                 let addr = match sockaddr_to_ipaddr(addr.address.lp_socket_address) {
                     None => continue,
@@ -430,82 +459,108 @@ mod getifaddrs_windows {
                         let mut item_netmask = Ipv4Addr::new(0, 0, 0, 0);
                         let mut item_broadcast = None;
                         // Search prefixes for a prefix matching addr
-                        'prefixloopv4: for prefix in unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }.iter() {
+                        'prefixloopv4: for prefix in unsafe {
+                            CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next)
+                        }.iter()
+                        {
                             let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V4(ref a)) => {
                                     let mut netmask: [u8; 4] = [0; 4];
-                                    for n in 0..((prefix.prefix_length as usize + 7) / 8) {
+                                    for (n, netmask_elt) in netmask.iter_mut().enumerate().take(
+                                        (prefix.prefix_length as usize + 7) /
+                                            8,
+                                    )
+                                    {
                                         let x_byte = ipv4_addr.octets()[n];
                                         let y_byte = a.octets()[n];
+                                        // Clippy 0.0.128 doesn't handle the label on the `continue`
+                                        #[cfg_attr(feature = "cargo-clippy",
+                                                   allow(needless_continue))]
                                         for m in 0..8 {
                                             if (n * 8) + m > prefix.prefix_length as usize {
                                                 break;
                                             }
                                             let bit = 1 << m;
                                             if (x_byte & bit) == (y_byte & bit) {
-                                                netmask[n] = netmask[n] | bit;
+                                                *netmask_elt |= bit;
                                             } else {
                                                 continue 'prefixloopv4;
                                             }
                                         }
                                     }
-                                    item_netmask = Ipv4Addr::new(netmask[0],
-                                                                 netmask[1],
-                                                                 netmask[2],
-                                                                 netmask[3]);
+                                    item_netmask = Ipv4Addr::new(
+                                        netmask[0],
+                                        netmask[1],
+                                        netmask[2],
+                                        netmask[3],
+                                    );
                                     let mut broadcast: [u8; 4] = ipv4_addr.octets();
                                     for n in 0..4 {
-                                        broadcast[n] = broadcast[n] | !netmask[n];
+                                        broadcast[n] |= !netmask[n];
                                     }
-                                    item_broadcast = Some(Ipv4Addr::new(broadcast[0],
-                                                                        broadcast[1],
-                                                                        broadcast[2],
-                                                                        broadcast[3]));
+                                    item_broadcast = Some(Ipv4Addr::new(
+                                        broadcast[0],
+                                        broadcast[1],
+                                        broadcast[2],
+                                        broadcast[3],
+                                    ));
                                     break 'prefixloopv4;
-                                },
+                                }
                                 _ => continue,
                             };
-                        };
+                        }
                         IfAddr::V4(Ifv4Addr {
                             ip: ipv4_addr,
                             netmask: item_netmask,
                             broadcast: item_broadcast,
                         })
-                    },
+                    }
                     Some(IpAddr::V6(ipv6_addr)) => {
                         let mut item_netmask = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0);
                         // Search prefixes for a prefix matching addr
-                        'prefixloopv6: for prefix in unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }.iter() {
+                        'prefixloopv6: for prefix in unsafe {
+                            CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next)
+                        }.iter()
+                        {
                             let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V6(ref a)) => {
                                     // Iterate the bits in the prefix, if they all match this prefix
                                     // is the right one, else try the next prefix
                                     let mut netmask: [u16; 8] = [0; 8];
-                                    for n in 0..((prefix.prefix_length as usize + 15) / 16) {
+                                    for (n, netmask_elt) in netmask.iter_mut().enumerate().take(
+                                        (prefix.prefix_length as usize + 15) /
+                                            16,
+                                    )
+                                    {
                                         let x_word = ipv6_addr.segments()[n];
                                         let y_word = a.segments()[n];
+                                        // Clippy 0.0.128 doesn't handle the label on the `continue`
+                                        #[cfg_attr(feature = "cargo-clippy",
+                                                   allow(needless_continue))]
                                         for m in 0..16 {
                                             if (n * 16) + m > prefix.prefix_length as usize {
                                                 break;
                                             }
                                             let bit = 1 << m;
                                             if (x_word & bit) == (y_word & bit) {
-                                                netmask[n] = netmask[n] | bit;
+                                                *netmask_elt |= bit;
                                             } else {
                                                 continue 'prefixloopv6;
                                             }
                                         }
                                     }
-                                    item_netmask = Ipv6Addr::new(netmask[0],
-                                                                 netmask[1],
-                                                                 netmask[2],
-                                                                 netmask[3],
-                                                                 netmask[4],
-                                                                 netmask[5],
-                                                                 netmask[6],
-                                                                 netmask[7]);
+                                    item_netmask = Ipv6Addr::new(
+                                        netmask[0],
+                                        netmask[1],
+                                        netmask[2],
+                                        netmask[3],
+                                        netmask[4],
+                                        netmask[5],
+                                        netmask[6],
+                                        netmask[7],
+                                    );
                                     break 'prefixloopv6;
                                 }
                                 _ => continue,
@@ -516,7 +571,7 @@ mod getifaddrs_windows {
                             netmask: item_netmask,
                             broadcast: None,
                         })
-                    },
+                    }
                 };
                 ret.push(Interface {
                     name: name,
@@ -538,8 +593,8 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 }
 
 #[cfg(test)]
-mod test {
-    use super::get_if_addrs;
+mod tests {
+    use super::{Interface, get_if_addrs};
     use std::error::Error;
     use std::io::Read;
     use std::net::{IpAddr, Ipv4Addr};
@@ -548,7 +603,7 @@ mod test {
     use std::thread;
     use std::time::Duration;
 
-    fn list_system_interfaces (cmd: &str, arg: &str) -> String {
+    fn list_system_interfaces(cmd: &str, arg: &str) -> String {
         let start_cmd = if arg == "" {
             Command::new(cmd).stdout(Stdio::piped()).spawn()
         } else {
@@ -563,63 +618,81 @@ mod test {
         };
         thread::sleep(Duration::from_millis(1000));
         let _ = process.kill();
-        let result: Vec<u8> = process.stdout.unwrap().bytes().map(|x| x.unwrap()).collect();
-        String::from_utf8(result).unwrap()
+        let result: Vec<u8> = unwrap!(process.stdout)
+            .bytes()
+            .map(|x| unwrap!(x))
+            .collect();
+        unwrap!(String::from_utf8(result))
     }
 
     #[cfg(windows)]
     fn list_system_addrs() -> Vec<IpAddr> {
         use std::net::Ipv6Addr;
-        list_system_interfaces("ipconfig", "").lines().filter_map(|line| {
-            println!("{}", line);
-            if line.contains("Address") && !line.contains("Link-local") {
-                let addr_s : Vec<&str> = line.split(" : ").collect();
-                if line.contains("IPv6") {
-                    return Some(IpAddr::V6(Ipv6Addr::from_str(addr_s[1]).ok().unwrap()));
-                } else if line.contains("IPv4") {
-                    return Some(IpAddr::V4(Ipv4Addr::from_str(addr_s[1]).ok().unwrap()));
+        list_system_interfaces("ipconfig", "")
+            .lines()
+            .filter_map(|line| {
+                println!("{}", line);
+                if line.contains("Address") && !line.contains("Link-local") {
+                    let addr_s: Vec<&str> = line.split(" : ").collect();
+                    if line.contains("IPv6") {
+                        return Some(IpAddr::V6(unwrap!(Ipv6Addr::from_str(addr_s[1]))));
+                    } else if line.contains("IPv4") {
+                        return Some(IpAddr::V4(unwrap!(Ipv4Addr::from_str(addr_s[1]))));
+                    }
                 }
-            }
-            None
-        }).collect()
+                None
+            })
+            .collect()
     }
 
     #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
     fn list_system_addrs() -> Vec<IpAddr> {
-        list_system_interfaces("ip", "addr").lines().filter_map(|line| {
-            println!("{}", line);
-            if line.contains("inet ") {
-                let addr_s : Vec<&str> = line.split_whitespace().collect();
-                let addr : Vec<&str> = addr_s[1].split("/").collect();
-                return Some(IpAddr::V4(Ipv4Addr::from_str(addr[0]).ok().unwrap()));
-            }
-            None
-        }).collect()
+        list_system_interfaces("ip", "addr")
+            .lines()
+            .filter_map(|line| {
+                println!("{}", line);
+                if line.contains("inet ") {
+                    let addr_s: Vec<&str> = line.split_whitespace().collect();
+                    let addr: Vec<&str> = addr_s[1].split('/').collect();
+                    return Some(IpAddr::V4(unwrap!(Ipv4Addr::from_str(addr[0]))));
+                }
+                None
+            })
+            .collect()
     }
 
     #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
     fn list_system_addrs() -> Vec<IpAddr> {
-        list_system_interfaces("ifconfig", "").lines().filter_map(|line| {
-            println!("{}", line);
-            if line.contains("inet ") {
-                let addr_s : Vec<&str> = line.split_whitespace().collect();
-                return Some(IpAddr::V4(Ipv4Addr::from_str(addr_s[1]).ok().unwrap()));
-            }
-            None
-        }).collect()
+        list_system_interfaces("ifconfig", "")
+            .lines()
+            .filter_map(|line| {
+                println!("{}", line);
+                if line.contains("inet ") {
+                    let addr_s: Vec<&str> = line.split_whitespace().collect();
+                    return Some(IpAddr::V4(unwrap!(Ipv4Addr::from_str(addr_s[1]))));
+                }
+                None
+            })
+            .collect()
     }
 
     #[test]
     fn test_get_if_addrs() {
-        let ifaces = get_if_addrs().unwrap();
+        let ifaces = unwrap!(get_if_addrs());
         println!("Local interfaces:");
         println!("{:#?}", ifaces);
         // at least one loop back address
-        assert!(1 <= ifaces.iter().filter(|interface| interface.is_loopback()).count());
+        assert!(
+            1 <=
+                ifaces
+                    .iter()
+                    .filter(|interface| interface.is_loopback())
+                    .count()
+        );
         // one address of IpV4(127.0.0.1)
-        assert!(1 == ifaces.iter().filter(|interface| {
-            interface.addr.ip() == IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))
-        }).count());
+        let is_loopback =
+            |interface: &&Interface| interface.addr.ip() == IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+        assert_eq!(1, ifaces.iter().filter(is_loopback).count());
 
         // each system address shall be listed
         let system_addrs = list_system_addrs();
@@ -627,7 +700,7 @@ mod test {
         for addr in system_addrs {
             let mut listed = false;
             println!("\n checking whether {:?} has been properly listed \n", addr);
-            for interface in ifaces.iter() {
+            for interface in &ifaces {
                 if interface.addr.ip() == addr {
                     listed = true;
                 }
@@ -636,4 +709,3 @@ mod test {
         }
     }
 }
-

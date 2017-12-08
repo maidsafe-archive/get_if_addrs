@@ -1,13 +1,14 @@
 env:
   global:
-    secure: hRIAlDeRnLopnrScfIx4W/Y32bGOVDIqtA4l8g2Ma5H81XUXe05/DLZFmLVl+kWKlgSDoJyex8wZP+6X5QMShCAwg26z091UzFs1ik1KGd/j3Wz9SRNJ6mC9RJfO7wyoyRRytzh67pFmfONX9qvjk9foI+Cbth9cqISHGz1/wVXzo3sJlIR6h86NL5S7t16ykBS6vfSIQckWezNeV7GRVST23N/CGqtUdrNncETNG4bVUfKrbnNsTTK0W9zvIvYEsbFH0NsnsdKSEzKy+CAwqvhI7PRnasCtghDADWJZXfEHaYezb/PHUULP4JMcfK8bAr4ndhLKOT1ETPwkpcBKFcNNJMQckTkMqZnTFCw3lU3wRTzAGHS2Zt5gGiDehq66qaugz29mQNwAvY6+LvDnAaxnPF5O2TGp5Ko2Y095sYoMR66xjmx8kMbG3BCW/Lk59lQeuDqN29EkqMb3+93/ihQFiKveZFPIhOr3/7gb5pnj7RKP5bs9b3w4sGi28o+MiUPTGVqXlPZGLzX3OgqFbXbUBvfq4JaHly9yYwaRrZ3lzec9SSZ+LfOOp9AgXN74KDspsN8/6ytK4sXZ6d3j6X7Tnkcg6Fw4jxgVhwvHRc6NlLS+ckn5cQH8obuYoWE3gDa5Zy2SrLq2Y01f++qTdE50LXtfuUrC885DaSBaRL0=
+    - RUST_BACKTRACE=1
+    - PATH=$PATH:$HOME/.cargo/bin
 os:
   - linux
   - osx
 language: rust
 rust:
-  - stable
-  - nightly
+  - 1.19.0
+  - nightly-2017-07-20
 sudo: false
 branches:
   only:
@@ -16,10 +17,26 @@ cache:
   cargo: true
   directories:
     - $HOME/elfutils
+before_script:
+  - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
+  - bash cargo_install.sh cargo-prune;
+  - if [ "${TRAVIS_RUST_VERSION}" = 1.19.0 ]; then
+      bash cargo_install.sh rustfmt 0.9.0;
+    elif [ "${TRAVIS_OS_NAME}" = linux ]; then
+      bash cargo_install.sh clippy 0.0.144;
+    fi
 script:
-  - curl -sSL https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/build_and_run_tests.sh | bash
+  - if [ "${TRAVIS_RUST_VERSION}" = 1.19.0 ]; then
+      (
+        set -x;
+        cargo fmt -- --write-mode=diff &&
+        cargo test --release --verbose
+      );
+    elif [ "${TRAVIS_OS_NAME}" = linux ]; then
+      (
+        set -x;
+        cargo clippy && cargo clippy --profile=test
+      );
+    fi
 before_cache:
-  - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/install_elfutils.sh
-  - . install_elfutils.sh
-after_success:
-  - curl -sSL https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/after_success.sh | bash
+  - cargo prune
