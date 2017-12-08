@@ -292,22 +292,16 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 
 #[cfg(windows)]
 mod getifaddrs_windows {
-
     use c_linked_list::CLinkedListConst;
-    use common::get_if_addrs::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
+    use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
     use libc;
-    use libc::{c_char, c_int, c_ulong, c_void, size_t};
+    use libc::{c_int, c_void, c_char, c_ulong, size_t};
     use std::{io, ptr};
     use std::ffi::CStr;
-    use libc::{c_void, c_char, c_ulong, size_t, c_int};
-    use libc;
     use winapi::{DWORD, AF_INET, AF_INET6, sockaddr_in6, ERROR_SUCCESS};
     use winapi::SOCKADDR as sockaddr;
     use winapi::SOCKADDR_IN as sockaddr_in;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-    use winapi::{AF_INET, AF_INET6, DWORD, ERROR_SUCCESS, sockaddr_in6};
-    use winapi::SOCKADDR as sockaddr;
-    use winapi::SOCKADDR_IN as sockaddr_in;
 
     #[repr(C)]
     struct SocketAddress {
