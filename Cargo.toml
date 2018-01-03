@@ -7,11 +7,11 @@ license = "GPL-3.0"
 name = "get_if_addrs"
 readme = "README.md"
 repository = "https://github.com/maidsafe/get_if_addrs"
-version = "0.4.1"
+version = "0.5.0"
 
 [dependencies]
-clippy = {version = "~0.0.45", optional = true}
-libc = "~0.2.28"
+clippy = {version = "~0.0.175", optional = true}
+libc = "~0.2.34"
 c_linked_list = "~1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
