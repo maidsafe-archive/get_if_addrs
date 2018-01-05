@@ -160,10 +160,12 @@ mod getifaddrs_posix {
 
     #[allow(unsafe_code)]
     fn sockaddr_to_ipaddr(sockaddr: *const posix_sockaddr) -> Option<IpAddr> {
+        let sa_family = u32::from(unsafe { *sockaddr }.sa_family);
+
         if sockaddr.is_null() {
             return None;
         }
-        if unsafe { *sockaddr }.sa_family as u32 == AF_INET as u32 {
+        if sa_family == AF_INET as u32 {
             let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in) };
             Some(IpAddr::V4(Ipv4Addr::new(
                 ((sa.sin_addr.s_addr) & 255) as u8,
@@ -171,29 +173,29 @@ mod getifaddrs_posix {
                 ((sa.sin_addr.s_addr >> 16) & 255) as u8,
                 ((sa.sin_addr.s_addr >> 24) & 255) as u8,
             )))
-        } else if unsafe { *sockaddr }.sa_family as u32 == AF_INET6 as u32 {
+        } else if sa_family == AF_INET6 as u32 {
             let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in6) };
             // Ignore all fe80:: addresses as these are link locals
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
             Some(IpAddr::V6(Ipv6Addr::new(
-                ((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[0]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[0]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[1]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[1]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[2]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[2]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[3]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[3]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[4]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[4]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[5]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[5]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[6]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[6]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[7]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[7]) >> 8) & 255),
             )))
         } else {
             None
@@ -384,22 +386,22 @@ mod getifaddrs_windows {
                 return None;
             }
             Some(IpAddr::V6(Ipv6Addr::new(
-                ((sa.sin6_addr.s6_addr[0] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[0] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[1] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[1] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[2] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[2] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[3] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[3] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[4] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[4] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[5] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[5] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[6] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[6] as u16 >> 8) & 255),
-                ((sa.sin6_addr.s6_addr[7] as u16 & 255) << 8) |
-                    ((sa.sin6_addr.s6_addr[7] as u16 >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[0]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[0]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[1]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[1]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[2]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[2]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[3]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[3]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[4]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[4]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[5]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[5]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[6]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[6]) >> 8) & 255),
+                ((u16::from(sa.sin6_addr.s6_addr[7]) & 255) << 8) |
+                    ((u16::from(sa.sin6_addr.s6_addr[7]) >> 8) & 255),
             )))
         } else {
             None
