@@ -160,11 +160,12 @@ mod getifaddrs_posix {
 
     #[allow(unsafe_code)]
     fn sockaddr_to_ipaddr(sockaddr: *const posix_sockaddr) -> Option<IpAddr> {
-        let sa_family = u32::from(unsafe { *sockaddr }.sa_family);
-
         if sockaddr.is_null() {
             return None;
         }
+
+        let sa_family = u32::from(unsafe { *sockaddr }.sa_family);
+
         if sa_family == AF_INET as u32 {
             let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in) };
             Some(IpAddr::V4(Ipv4Addr::new(
