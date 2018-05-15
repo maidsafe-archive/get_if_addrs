@@ -173,24 +173,7 @@ mod getifaddrs_posix {
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
-            Some(IpAddr::V6(Ipv6Addr::new(
-                ((u16::from(sa.sin6_addr.s6_addr[0]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[0]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[1]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[1]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[2]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[2]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[3]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[3]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[4]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[4]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[5]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[5]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[6]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[6]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[7]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[7]) >> 8) & 255),
-            )))
+            Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
         } else {
             None
         }
@@ -379,24 +362,7 @@ mod getifaddrs_windows {
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
                 return None;
             }
-            Some(IpAddr::V6(Ipv6Addr::new(
-                ((u16::from(sa.sin6_addr.s6_addr[0]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[0]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[1]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[1]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[2]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[2]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[3]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[3]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[4]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[4]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[5]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[5]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[6]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[6]) >> 8) & 255),
-                ((u16::from(sa.sin6_addr.s6_addr[7]) & 255) << 8) |
-                    ((u16::from(sa.sin6_addr.s6_addr[7]) >> 8) & 255),
-            )))
+            Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
         } else {
             None
         }
