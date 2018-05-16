@@ -1,5 +1,8 @@
 # get_if_addrs - Change Log
 
+## [0.5.2]
+- Fix incorrect parsing of IPv6 addresses
+
 ## [0.5.1]
 - Fixed nullptr deref in unsafe code
 - Use Rust 1.24.0 stable / 2018-02-05 nightly
