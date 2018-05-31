@@ -9,25 +9,35 @@
 
 //! get_if_addrs
 
-#![doc(html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/
 maidsafe_logo.png",
-      html_favicon_url = "http://maidsafe.net/img/favicon.ico",
-      html_root_url = "http://maidsafe.github.io/get_if_addrs")]
+    html_favicon_url = "http://maidsafe.net/img/favicon.ico",
+    html_root_url = "http://maidsafe.github.io/get_if_addrs"
+)]
 // For explanation of lint checks, run `rustc -W help` or see
 // https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
-#![forbid(exceeding_bitshifts, mutable_transmutes, no_mangle_const_items, unknown_crate_types,
-          warnings)]
-#![deny(bad_style, deprecated, improper_ctypes, missing_docs, non_shorthand_field_patterns,
-        overflowing_literals, plugin_as_library, private_no_mangle_fns, private_no_mangle_statics,
-        stable_features, unconditional_recursion, unknown_lints, unsafe_code, unused,
-        unused_allocation, unused_attributes, unused_comparisons, unused_features, unused_parens,
-        while_true)]
-#![warn(trivial_casts, trivial_numeric_casts, unused_extern_crates, unused_import_braces,
-        unused_qualifications, unused_results)]
-#![allow(box_pointers, missing_copy_implementations, missing_debug_implementations,
-         variant_size_differences)]
-#![cfg_attr(feature = "cargo-clippy",
-            deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used))]
+#![forbid(
+    exceeding_bitshifts, mutable_transmutes, no_mangle_const_items, unknown_crate_types, warnings
+)]
+#![deny(
+    bad_style, deprecated, improper_ctypes, missing_docs, non_shorthand_field_patterns,
+    overflowing_literals, plugin_as_library, private_no_mangle_fns, private_no_mangle_statics,
+    stable_features, unconditional_recursion, unknown_lints, unsafe_code, unused, unused_allocation,
+    unused_attributes, unused_comparisons, unused_features, unused_parens, while_true
+)]
+#![warn(
+    trivial_casts, trivial_numeric_casts, unused_extern_crates, unused_import_braces,
+    unused_qualifications, unused_results
+)]
+#![allow(
+    box_pointers, missing_copy_implementations, missing_debug_implementations,
+    variant_size_differences
+)]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
+)]
 #![cfg_attr(feature = "cargo-clippy", allow(use_debug, too_many_arguments))]
 
 #[cfg(windows)]
@@ -38,10 +48,10 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[cfg(test)]
 #[macro_use]
 extern crate unwrap;
-extern crate libc;
 extern crate c_linked_list;
 #[cfg(target_os = "android")]
 extern crate get_if_addrs_sys;
+extern crate libc;
 
 /// Details about an interface on this host
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -129,27 +139,27 @@ impl Ifv6Addr {
 
 #[cfg(not(windows))]
 mod getifaddrs_posix {
-    use c_linked_list::CLinkedListMut;
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use libc::{AF_INET, AF_INET6};
+    use c_linked_list::CLinkedListMut;
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::freeifaddrs as posix_freeifaddrs;
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::getifaddrs as posix_getifaddrs;
     #[cfg(target_os = "android")]
     use get_if_addrs_sys::ifaddrs as posix_ifaddrs;
     #[cfg(not(target_os = "android"))]
-    use libc::ifaddrs as posix_ifaddrs;
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::getifaddrs as posix_getifaddrs;
+    use libc::freeifaddrs as posix_freeifaddrs;
     #[cfg(not(target_os = "android"))]
     use libc::getifaddrs as posix_getifaddrs;
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::freeifaddrs as posix_freeifaddrs;
     #[cfg(not(target_os = "android"))]
-    use libc::freeifaddrs as posix_freeifaddrs;
+    use libc::ifaddrs as posix_ifaddrs;
     use libc::sockaddr as posix_sockaddr;
     use libc::sockaddr_in as posix_sockaddr_in;
     use libc::sockaddr_in6 as posix_sockaddr_in6;
-    use std::{io, mem};
+    use libc::{AF_INET6, AF_INET};
     use std::ffi::CStr;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    use std::{io, mem};
 
     #[allow(unsafe_code)]
     fn sockaddr_to_ipaddr(sockaddr: *const posix_sockaddr) -> Option<IpAddr> {
@@ -184,8 +194,9 @@ mod getifaddrs_posix {
         sockaddr_to_ipaddr(ifaddr.ifa_ifu)
     }
 
-    #[cfg(any(target_os = "freebsd", target_os = "ios", target_os = "macos",
-                target_os = "openbsd"))]
+    #[cfg(
+        any(target_os = "freebsd", target_os = "ios", target_os = "macos", target_os = "openbsd")
+    )]
     fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
         sockaddr_to_ipaddr(ifaddr.ifa_dstaddr)
     }
@@ -271,16 +282,16 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 
 #[cfg(windows)]
 mod getifaddrs_windows {
-    use c_linked_list::CLinkedListConst;
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
+    use c_linked_list::CLinkedListConst;
     use libc;
-    use libc::{c_int, c_void, c_char, c_ulong, size_t};
-    use std::{io, ptr};
+    use libc::{c_char, c_int, c_ulong, c_void, size_t};
     use std::ffi::CStr;
-    use winapi::{DWORD, AF_INET, AF_INET6, sockaddr_in6, ERROR_SUCCESS};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    use std::{io, ptr};
     use winapi::SOCKADDR as sockaddr;
     use winapi::SOCKADDR_IN as sockaddr_in;
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    use winapi::{sockaddr_in6, AF_INET6, AF_INET, DWORD, ERROR_SUCCESS};
 
     #[repr(C)]
     struct SocketAddress {
@@ -429,16 +440,17 @@ mod getifaddrs_windows {
                             match ipprefix {
                                 Some(IpAddr::V4(ref a)) => {
                                     let mut netmask: [u8; 4] = [0; 4];
-                                    for (n, netmask_elt) in netmask.iter_mut().enumerate().take(
-                                        (prefix.prefix_length as usize + 7) /
-                                            8,
-                                    )
+                                    for (n, netmask_elt) in netmask
+                                        .iter_mut()
+                                        .enumerate()
+                                        .take((prefix.prefix_length as usize + 7) / 8)
                                     {
                                         let x_byte = ipv4_addr.octets()[n];
                                         let y_byte = a.octets()[n];
                                         // Clippy 0.0.128 doesn't handle the label on the `continue`
-                                        #[cfg_attr(feature = "cargo-clippy",
-                                                   allow(needless_continue))]
+                                        #[cfg_attr(
+                                            feature = "cargo-clippy", allow(needless_continue)
+                                        )]
                                         for m in 0..8 {
                                             if (n * 8) + m > prefix.prefix_length as usize {
                                                 break;
@@ -452,10 +464,7 @@ mod getifaddrs_windows {
                                         }
                                     }
                                     item_netmask = Ipv4Addr::new(
-                                        netmask[0],
-                                        netmask[1],
-                                        netmask[2],
-                                        netmask[3],
+                                        netmask[0], netmask[1], netmask[2], netmask[3],
                                     );
                                     let mut broadcast: [u8; 4] = ipv4_addr.octets();
                                     for n in 0..4 {
@@ -491,16 +500,17 @@ mod getifaddrs_windows {
                                     // Iterate the bits in the prefix, if they all match this prefix
                                     // is the right one, else try the next prefix
                                     let mut netmask: [u16; 8] = [0; 8];
-                                    for (n, netmask_elt) in netmask.iter_mut().enumerate().take(
-                                        (prefix.prefix_length as usize + 15) /
-                                            16,
-                                    )
+                                    for (n, netmask_elt) in netmask
+                                        .iter_mut()
+                                        .enumerate()
+                                        .take((prefix.prefix_length as usize + 15) / 16)
                                     {
                                         let x_word = ipv6_addr.segments()[n];
                                         let y_word = a.segments()[n];
                                         // Clippy 0.0.128 doesn't handle the label on the `continue`
-                                        #[cfg_attr(feature = "cargo-clippy",
-                                                   allow(needless_continue))]
+                                        #[cfg_attr(
+                                            feature = "cargo-clippy", allow(needless_continue)
+                                        )]
                                         for m in 0..16 {
                                             if (n * 16) + m > prefix.prefix_length as usize {
                                                 break;
@@ -514,14 +524,8 @@ mod getifaddrs_windows {
                                         }
                                     }
                                     item_netmask = Ipv6Addr::new(
-                                        netmask[0],
-                                        netmask[1],
-                                        netmask[2],
-                                        netmask[3],
-                                        netmask[4],
-                                        netmask[5],
-                                        netmask[6],
-                                        netmask[7],
+                                        netmask[0], netmask[1], netmask[2], netmask[3], netmask[4],
+                                        netmask[5], netmask[6], netmask[7],
                                     );
                                     break 'prefixloopv6;
                                 }
@@ -556,7 +560,7 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Interface, get_if_addrs};
+    use super::{get_if_addrs, Interface};
     use std::error::Error;
     use std::io::Read;
     use std::net::{IpAddr, Ipv4Addr};
@@ -645,11 +649,10 @@ mod tests {
         println!("{:#?}", ifaces);
         // at least one loop back address
         assert!(
-            1 <=
-                ifaces
-                    .iter()
-                    .filter(|interface| interface.is_loopback())
-                    .count()
+            1 <= ifaces
+                .iter()
+                .filter(|interface| interface.is_loopback())
+                .count()
         );
         // one address of IpV4(127.0.0.1)
         let is_loopback =
