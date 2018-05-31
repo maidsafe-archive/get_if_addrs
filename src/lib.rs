@@ -170,6 +170,7 @@ mod getifaddrs_posix {
         let sa_family = u32::from(unsafe { *sockaddr }.sa_family);
 
         if sa_family == AF_INET as u32 {
+            #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
             let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in) };
             Some(IpAddr::V4(Ipv4Addr::new(
                 ((sa.sin_addr.s_addr) & 255) as u8,
@@ -178,6 +179,7 @@ mod getifaddrs_posix {
                 ((sa.sin_addr.s_addr >> 24) & 255) as u8,
             )))
         } else if sa_family == AF_INET6 as u32 {
+            #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
             let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in6) };
             // Ignore all fe80:: addresses as these are link locals
             if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
@@ -238,8 +240,8 @@ mod getifaddrs_posix {
                     };
                     IfAddr::V4(Ifv4Addr {
                         ip: ipv4_addr,
-                        netmask: netmask,
-                        broadcast: broadcast,
+                        netmask,
+                        broadcast,
                     })
                 }
                 Some(IpAddr::V6(ipv6_addr)) => {
@@ -257,15 +259,12 @@ mod getifaddrs_posix {
                     };
                     IfAddr::V6(Ifv6Addr {
                         ip: ipv6_addr,
-                        netmask: netmask,
-                        broadcast: broadcast,
+                        netmask,
+                        broadcast,
                     })
                 }
             };
-            ret.push(Interface {
-                name: name,
-                addr: addr,
-            });
+            ret.push(Interface { name, addr });
         }
         unsafe {
             posix_freeifaddrs(ifaddrs);
@@ -661,7 +660,7 @@ mod tests {
 
         // each system address shall be listed
         let system_addrs = list_system_addrs();
-        assert!(system_addrs.len() >= 1);
+        assert!(!system_addrs.is_empty());
         for addr in system_addrs {
             let mut listed = false;
             println!("\n checking whether {:?} has been properly listed \n", addr);
