@@ -12,13 +12,13 @@ version = "0.5.2"
 [dependencies]
 clippy = {version = "~0.0.175", optional = true}
 libc = "~0.2.34"
-c_linked_list = "~1.1.0"
+c_linked_list = "~1.1.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies.get_if_addrs-sys]
-version = "0.1.0"
+version = "~0.1.1"
 path = "get_if_addrs-sys"
 
 [dev-dependencies]
