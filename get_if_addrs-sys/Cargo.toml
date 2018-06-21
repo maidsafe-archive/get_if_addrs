@@ -8,7 +8,7 @@ license = "MIT OR BSD-3-Clause"
 links = "ifaddrs"
 name = "get_if_addrs-sys"
 repository = "https://github.com/maidsafe/get_if_addrs"
-version = "0.1.0"
+version = "0.1.1"
 
 [lib]
 path = "lib.rs"
