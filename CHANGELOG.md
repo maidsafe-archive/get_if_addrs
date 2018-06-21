@@ -1,5 +1,9 @@
 # get_if_addrs - Change Log
 
+## [0.5.3]
+- Update dependency version of get_if_addrs-sys to 0.1.1
+- Update dependency version of c_linked_list to 1.1.1
+
 ## [0.5.2]
 - Fix incorrect parsing of IPv6 addresses
 
