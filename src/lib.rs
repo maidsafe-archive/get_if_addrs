@@ -18,27 +18,61 @@ maidsafe_logo.png",
 // For explanation of lint checks, run `rustc -W help` or see
 // https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
 #![forbid(
-    exceeding_bitshifts, mutable_transmutes, no_mangle_const_items, unknown_crate_types, warnings
+    exceeding_bitshifts,
+    mutable_transmutes,
+    no_mangle_const_items,
+    unknown_crate_types,
+    warnings
 )]
 #![deny(
-    bad_style, deprecated, improper_ctypes, missing_docs, non_shorthand_field_patterns,
-    overflowing_literals, plugin_as_library, private_no_mangle_fns, private_no_mangle_statics,
-    stable_features, unconditional_recursion, unknown_lints, unsafe_code, unused, unused_allocation,
-    unused_attributes, unused_comparisons, unused_features, unused_parens, while_true
+    bad_style,
+    deprecated,
+    improper_ctypes,
+    missing_docs,
+    non_shorthand_field_patterns,
+    overflowing_literals,
+    plugin_as_library,
+    private_no_mangle_fns,
+    private_no_mangle_statics,
+    stable_features,
+    unconditional_recursion,
+    unknown_lints,
+    unsafe_code,
+    unused,
+    unused_allocation,
+    unused_attributes,
+    unused_comparisons,
+    unused_features,
+    unused_parens,
+    while_true
 )]
 #![warn(
-    trivial_casts, trivial_numeric_casts, unused_extern_crates, unused_import_braces,
-    unused_qualifications, unused_results
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_results
 )]
 #![allow(
-    box_pointers, missing_copy_implementations, missing_debug_implementations,
+    box_pointers,
+    missing_copy_implementations,
+    missing_debug_implementations,
     variant_size_differences
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
+    deny(
+        clippy,
+        unicode_not_nfc,
+        wrong_pub_self_convention,
+        option_unwrap_used
+    )
 )]
-#![cfg_attr(feature = "cargo-clippy", allow(use_debug, too_many_arguments))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(use_debug, too_many_arguments)
+)]
 
 #[cfg(windows)]
 extern crate winapi;
@@ -156,7 +190,7 @@ mod getifaddrs_posix {
     use libc::sockaddr as posix_sockaddr;
     use libc::sockaddr_in as posix_sockaddr_in;
     use libc::sockaddr_in6 as posix_sockaddr_in6;
-    use libc::{AF_INET6, AF_INET};
+    use libc::{AF_INET, AF_INET6};
     use std::ffi::CStr;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use std::{io, mem};
@@ -191,14 +225,21 @@ mod getifaddrs_posix {
         }
     }
 
-    #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "nacl"
+    ))]
     fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
         sockaddr_to_ipaddr(ifaddr.ifa_ifu)
     }
 
-    #[cfg(
-        any(target_os = "freebsd", target_os = "ios", target_os = "macos", target_os = "openbsd")
-    )]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "ios",
+        target_os = "macos",
+        target_os = "openbsd"
+    ))]
     fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
         sockaddr_to_ipaddr(ifaddr.ifa_dstaddr)
     }
@@ -290,7 +331,7 @@ mod getifaddrs_windows {
     use std::{io, ptr};
     use winapi::SOCKADDR as sockaddr;
     use winapi::SOCKADDR_IN as sockaddr_in;
-    use winapi::{sockaddr_in6, AF_INET6, AF_INET, DWORD, ERROR_SUCCESS};
+    use winapi::{sockaddr_in6, AF_INET, AF_INET6, DWORD, ERROR_SUCCESS};
 
     #[repr(C)]
     struct SocketAddress {
@@ -417,9 +458,9 @@ mod getifaddrs_windows {
         }
 
         for ifaddr in unsafe { CLinkedListConst::from_ptr(ifaddrs, |a| a.next) }.iter() {
-            for addr in unsafe {
-                CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next)
-            }.iter()
+            for addr in
+                unsafe { CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next) }
+                    .iter()
             {
                 let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }
                     .to_string_lossy()
@@ -431,9 +472,9 @@ mod getifaddrs_windows {
                         let mut item_netmask = Ipv4Addr::new(0, 0, 0, 0);
                         let mut item_broadcast = None;
                         // Search prefixes for a prefix matching addr
-                        'prefixloopv4: for prefix in unsafe {
-                            CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next)
-                        }.iter()
+                        'prefixloopv4: for prefix in
+                            unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }
+                                .iter()
                         {
                             let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
@@ -489,9 +530,9 @@ mod getifaddrs_windows {
                     Some(IpAddr::V6(ipv6_addr)) => {
                         let mut item_netmask = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0);
                         // Search prefixes for a prefix matching addr
-                        'prefixloopv6: for prefix in unsafe {
-                            CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next)
-                        }.iter()
+                        'prefixloopv6: for prefix in
+                            unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }
+                                .iter()
                         {
                             let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
@@ -606,11 +647,14 @@ mod tests {
                     }
                 }
                 None
-            })
-            .collect()
+            }).collect()
     }
 
-    #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "nacl"
+    ))]
     fn list_system_addrs() -> Vec<IpAddr> {
         list_system_interfaces("ip", "addr")
             .lines()
@@ -622,11 +666,14 @@ mod tests {
                     return Some(IpAddr::V4(unwrap!(Ipv4Addr::from_str(addr[0]))));
                 }
                 None
-            })
-            .collect()
+            }).collect()
     }
 
-    #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "macos",
+        target_os = "ios"
+    ))]
     fn list_system_addrs() -> Vec<IpAddr> {
         list_system_interfaces("ifconfig", "")
             .lines()
@@ -637,8 +684,7 @@ mod tests {
                     return Some(IpAddr::V4(unwrap!(Ipv4Addr::from_str(addr_s[1]))));
                 }
                 None
-            })
-            .collect()
+            }).collect()
     }
 
     #[test]
