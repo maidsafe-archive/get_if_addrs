@@ -22,4 +22,4 @@ version = "~0.1.1"
 path = "get_if_addrs-sys"
 
 [dev-dependencies]
-unwrap = "~1.1.0"
+unwrap = "~1.2.0"
