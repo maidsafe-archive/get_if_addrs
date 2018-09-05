@@ -171,67 +171,142 @@ impl Ifv6Addr {
     }
 }
 
+mod sockaddr {
+    #[cfg(not(windows))]
+    use libc::{sockaddr, sockaddr_in, sockaddr_in6, AF_INET, AF_INET6};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    use std::ptr::NonNull;
+    #[cfg(windows)]
+    use winapi::{
+        sockaddr_in6, AF_INET, AF_INET6, SOCKADDR as sockaddr, SOCKADDR_IN as sockaddr_in,
+    };
+
+    pub fn to_ipaddr(sockaddr: *const sockaddr) -> Option<IpAddr> {
+        if sockaddr.is_null() {
+            return None;
+        }
+        SockAddr::new(sockaddr)?.as_ipaddr()
+    }
+
+    // Wrapper around a sockaddr pointer. Guaranteed to not be null.
+    struct SockAddr {
+        inner: NonNull<sockaddr>,
+    }
+
+    impl SockAddr {
+        fn new(sockaddr: *const sockaddr) -> Option<Self> {
+            NonNull::new(sockaddr as *mut _).map(|inner| Self { inner })
+        }
+
+        #[cfg(not(windows))]
+        fn as_ipaddr(&self) -> Option<IpAddr> {
+            match self.sockaddr_in() {
+                Some(SockAddrIn::In(sa)) => Some(IpAddr::V4(Ipv4Addr::new(
+                    ((sa.sin_addr.s_addr) & 255) as u8,
+                    ((sa.sin_addr.s_addr >> 8) & 255) as u8,
+                    ((sa.sin_addr.s_addr >> 16) & 255) as u8,
+                    ((sa.sin_addr.s_addr >> 24) & 255) as u8,
+                ))),
+                Some(SockAddrIn::In6(sa)) => {
+                    // Ignore all fe80:: addresses as these are link locals
+                    if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
+                        return None;
+                    }
+                    Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
+                }
+                None => None,
+            }
+        }
+
+        #[cfg(windows)]
+        fn as_ipaddr(&self) -> Option<IpAddr> {
+            match self.sockaddr_in() {
+                Some(SockAddrIn::In(sa)) => {
+                    // Ignore all 169.254.x.x addresses as these are not active interfaces
+                    if sa.sin_addr.S_un & 65535 == 0xfea9 {
+                        return None;
+                    }
+                    Some(IpAddr::V4(Ipv4Addr::new(
+                        ((sa.sin_addr.S_un >> 0) & 255) as u8,
+                        ((sa.sin_addr.S_un >> 8) & 255) as u8,
+                        ((sa.sin_addr.S_un >> 16) & 255) as u8,
+                        ((sa.sin_addr.S_un >> 24) & 255) as u8,
+                    )))
+                }
+                Some(SockAddrIn::In6(sa)) => {
+                    // Ignore all fe80:: addresses as these are link locals
+                    if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
+                        return None;
+                    }
+                    Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
+                }
+                None => None,
+            }
+        }
+
+        fn sockaddr_in(&self) -> Option<SockAddrIn> {
+            const AF_INET_U32: u32 = AF_INET as u32;
+            const AF_INET6_U32: u32 = AF_INET6 as u32;
+
+            match self.sa_family() {
+                AF_INET_U32 => Some(SockAddrIn::In(self.sa_in())),
+                AF_INET6_U32 => Some(SockAddrIn::In6(self.sa_in6())),
+                _ => None,
+            }
+        }
+
+        #[allow(unsafe_code)]
+        fn sa_family(&self) -> u32 {
+            unsafe { u32::from(self.inner.as_ref().sa_family) }
+        }
+
+        #[allow(unsafe_code)]
+        #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
+        fn sa_in(&self) -> sockaddr_in {
+            unsafe { *(self.inner.as_ptr() as *const sockaddr_in) }
+        }
+
+        #[allow(unsafe_code)]
+        #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
+        fn sa_in6(&self) -> sockaddr_in6 {
+            unsafe { *(self.inner.as_ptr() as *const sockaddr_in6) }
+        }
+    }
+
+    enum SockAddrIn {
+        In(sockaddr_in),
+        In6(sockaddr_in6),
+    }
+}
+
 #[cfg(not(windows))]
 mod getifaddrs_posix {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
     use c_linked_list::CLinkedListMut;
     #[cfg(target_os = "android")]
-    use get_if_addrs_sys::freeifaddrs as posix_freeifaddrs;
+    use get_if_addrs_sys::freeifaddrs;
     #[cfg(target_os = "android")]
-    use get_if_addrs_sys::getifaddrs as posix_getifaddrs;
+    use get_if_addrs_sys::getifaddrs;
     #[cfg(target_os = "android")]
-    use get_if_addrs_sys::ifaddrs as posix_ifaddrs;
+    use get_if_addrs_sys::ifaddrs;
     #[cfg(not(target_os = "android"))]
-    use libc::freeifaddrs as posix_freeifaddrs;
+    use libc::freeifaddrs;
     #[cfg(not(target_os = "android"))]
-    use libc::getifaddrs as posix_getifaddrs;
+    use libc::getifaddrs;
     #[cfg(not(target_os = "android"))]
-    use libc::ifaddrs as posix_ifaddrs;
-    use libc::sockaddr as posix_sockaddr;
-    use libc::sockaddr_in as posix_sockaddr_in;
-    use libc::sockaddr_in6 as posix_sockaddr_in6;
-    use libc::{AF_INET, AF_INET6};
+    use libc::ifaddrs;
+    use sockaddr;
     use std::ffi::CStr;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use std::{io, mem};
-
-    #[allow(unsafe_code)]
-    fn sockaddr_to_ipaddr(sockaddr: *const posix_sockaddr) -> Option<IpAddr> {
-        if sockaddr.is_null() {
-            return None;
-        }
-
-        let sa_family = u32::from(unsafe { *sockaddr }.sa_family);
-
-        if sa_family == AF_INET as u32 {
-            #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-            let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in) };
-            Some(IpAddr::V4(Ipv4Addr::new(
-                ((sa.sin_addr.s_addr) & 255) as u8,
-                ((sa.sin_addr.s_addr >> 8) & 255) as u8,
-                ((sa.sin_addr.s_addr >> 16) & 255) as u8,
-                ((sa.sin_addr.s_addr >> 24) & 255) as u8,
-            )))
-        } else if sa_family == AF_INET6 as u32 {
-            #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-            let sa = &unsafe { *(sockaddr as *const posix_sockaddr_in6) };
-            // Ignore all fe80:: addresses as these are link locals
-            if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
-                return None;
-            }
-            Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
-        } else {
-            None
-        }
-    }
 
     #[cfg(any(
         target_os = "linux",
         target_os = "android",
         target_os = "nacl"
     ))]
-    fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
-        sockaddr_to_ipaddr(ifaddr.ifa_ifu)
+    fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
+        sockaddr::to_ipaddr(ifaddr.ifa_ifu)
     }
 
     #[cfg(any(
@@ -240,8 +315,8 @@ mod getifaddrs_posix {
         target_os = "macos",
         target_os = "openbsd"
     ))]
-    fn do_broadcast(ifaddr: &posix_ifaddrs) -> Option<IpAddr> {
-        sockaddr_to_ipaddr(ifaddr.ifa_dstaddr)
+    fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
+        sockaddr::to_ipaddr(ifaddr.ifa_dstaddr)
     }
 
     /// Return a vector of IP details for all the valid interfaces on this host
@@ -249,25 +324,19 @@ mod getifaddrs_posix {
     #[allow(trivial_casts)]
     pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
         let mut ret = Vec::<Interface>::new();
-        let mut ifaddrs: *mut posix_ifaddrs;
+        let mut ifaddrs: *mut ifaddrs;
         unsafe {
             ifaddrs = mem::uninitialized();
-            if -1 == posix_getifaddrs(&mut ifaddrs) {
+            if -1 == getifaddrs(&mut ifaddrs) {
                 return Err(io::Error::last_os_error());
             }
         }
 
         for ifaddr in unsafe { CLinkedListMut::from_ptr(ifaddrs, |a| a.ifa_next) }.iter() {
-            if ifaddr.ifa_addr.is_null() {
-                continue;
-            }
-            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name as *const _) }
-                .to_string_lossy()
-                .into_owned();
-            let addr = match sockaddr_to_ipaddr(ifaddr.ifa_addr) {
+            let addr = match sockaddr::to_ipaddr(ifaddr.ifa_addr) {
                 None => continue,
                 Some(IpAddr::V4(ipv4_addr)) => {
-                    let netmask = match sockaddr_to_ipaddr(ifaddr.ifa_netmask) {
+                    let netmask = match sockaddr::to_ipaddr(ifaddr.ifa_netmask) {
                         Some(IpAddr::V4(netmask)) => netmask,
                         _ => Ipv4Addr::new(0, 0, 0, 0),
                     };
@@ -279,6 +348,7 @@ mod getifaddrs_posix {
                     } else {
                         None
                     };
+
                     IfAddr::V4(Ifv4Addr {
                         ip: ipv4_addr,
                         netmask,
@@ -286,7 +356,7 @@ mod getifaddrs_posix {
                     })
                 }
                 Some(IpAddr::V6(ipv6_addr)) => {
-                    let netmask = match sockaddr_to_ipaddr(ifaddr.ifa_netmask) {
+                    let netmask = match sockaddr::to_ipaddr(ifaddr.ifa_netmask) {
                         Some(IpAddr::V6(netmask)) => netmask,
                         _ => Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0),
                     };
@@ -298,6 +368,7 @@ mod getifaddrs_posix {
                     } else {
                         None
                     };
+
                     IfAddr::V6(Ifv6Addr {
                         ip: ipv6_addr,
                         netmask,
@@ -305,10 +376,15 @@ mod getifaddrs_posix {
                     })
                 }
             };
+
+            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name as *const _) }
+                .to_string_lossy()
+                .into_owned();
             ret.push(Interface { name, addr });
         }
+
         unsafe {
-            posix_freeifaddrs(ifaddrs);
+            freeifaddrs(ifaddrs);
         }
         Ok(ret)
     }
@@ -326,16 +402,15 @@ mod getifaddrs_windows {
     use c_linked_list::CLinkedListConst;
     use libc;
     use libc::{c_char, c_int, c_ulong, c_void, size_t};
+    use sockaddr;
     use std::ffi::CStr;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use std::{io, ptr};
-    use winapi::SOCKADDR as sockaddr;
-    use winapi::SOCKADDR_IN as sockaddr_in;
-    use winapi::{sockaddr_in6, AF_INET, AF_INET6, DWORD, ERROR_SUCCESS};
+    use winapi::{DWORD, ERROR_SUCCESS, SOCKADDR};
 
     #[repr(C)]
     struct SocketAddress {
-        pub lp_socket_address: *const sockaddr,
+        pub lp_socket_address: *const SOCKADDR,
         pub i_socket_address_length: c_int,
     }
     #[repr(C)]
@@ -390,35 +465,6 @@ mod getifaddrs_windows {
         ) -> c_ulong;
     }
 
-    #[allow(unsafe_code)]
-    fn sockaddr_to_ipaddr(sockaddr: *const sockaddr) -> Option<IpAddr> {
-        if sockaddr.is_null() {
-            return None;
-        }
-        if unsafe { *sockaddr }.sa_family as u32 == AF_INET as u32 {
-            let sa = &unsafe { *(sockaddr as *const sockaddr_in) };
-            // Ignore all 169.254.x.x addresses as these are not active interfaces
-            if sa.sin_addr.S_un & 65535 == 0xfea9 {
-                return None;
-            }
-            Some(IpAddr::V4(Ipv4Addr::new(
-                ((sa.sin_addr.S_un >> 0) & 255) as u8,
-                ((sa.sin_addr.S_un >> 8) & 255) as u8,
-                ((sa.sin_addr.S_un >> 16) & 255) as u8,
-                ((sa.sin_addr.S_un >> 24) & 255) as u8,
-            )))
-        } else if unsafe { *sockaddr }.sa_family as u32 == AF_INET6 as u32 {
-            let sa = &unsafe { *(sockaddr as *const sockaddr_in6) };
-            // Ignore all fe80:: addresses as these are link locals
-            if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
-                return None;
-            }
-            Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
-        } else {
-            None
-        }
-    }
-
     // trivial_numeric_casts lint may become allow by default.
     // Refer: https://github.com/rust-lang/rfcs/issues/1020
     /// Return a vector of IP details for all the valid interfaces on this host
@@ -462,21 +508,18 @@ mod getifaddrs_windows {
                 unsafe { CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next) }
                     .iter()
             {
-                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }
-                    .to_string_lossy()
-                    .into_owned();
-
-                let addr = match sockaddr_to_ipaddr(addr.address.lp_socket_address) {
+                let addr = match sockaddr::to_ipaddr(addr.address.lp_socket_address) {
                     None => continue,
                     Some(IpAddr::V4(ipv4_addr)) => {
                         let mut item_netmask = Ipv4Addr::new(0, 0, 0, 0);
                         let mut item_broadcast = None;
+
                         // Search prefixes for a prefix matching addr
                         'prefixloopv4: for prefix in
                             unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }
                                 .iter()
                         {
-                            let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
+                            let ipprefix = sockaddr::to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V4(ref a)) => {
                                     let mut netmask: [u8; 4] = [0; 4];
@@ -534,7 +577,7 @@ mod getifaddrs_windows {
                             unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }
                                 .iter()
                         {
-                            let ipprefix = sockaddr_to_ipaddr(prefix.address.lp_socket_address);
+                            let ipprefix = sockaddr::to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V6(ref a)) => {
                                     // Iterate the bits in the prefix, if they all match this prefix
@@ -579,10 +622,11 @@ mod getifaddrs_windows {
                         })
                     }
                 };
-                ret.push(Interface {
-                    name: name,
-                    addr: addr,
-                });
+
+                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }
+                    .to_string_lossy()
+                    .into_owned();
+                ret.push(Interface { name, addr });
             }
         }
         unsafe {
