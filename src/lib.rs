@@ -87,44 +87,13 @@ extern crate c_linked_list;
 extern crate get_if_addrs_sys;
 extern crate libc;
 
-/// Details about an interface on this host
+/// Details about an interface on this host.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Interface {
     /// The name of the interface.
     pub name: String,
     /// The address details of the interface.
     pub addr: IfAddr,
-}
-
-/// Details about the address of an interface on this host
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum IfAddr {
-    /// This is an Ipv4 interface.
-    V4(Ifv4Addr),
-    /// This is an Ipv6 interface.
-    V6(Ifv6Addr),
-}
-
-/// Details about the ipv4 address of an interface on this host
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Ifv4Addr {
-    /// The IP address of the interface.
-    pub ip: Ipv4Addr,
-    /// The netmask of the interface.
-    pub netmask: Ipv4Addr,
-    /// The broadcast address of the interface.
-    pub broadcast: Option<Ipv4Addr>,
-}
-
-/// Details about the ipv6 address of an interface on this host
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Ifv6Addr {
-    /// The IP address of the interface.
-    pub ip: Ipv6Addr,
-    /// The netmask of the interface.
-    pub netmask: Ipv6Addr,
-    /// The broadcast address of the interface.
-    pub broadcast: Option<Ipv6Addr>,
 }
 
 impl Interface {
@@ -137,6 +106,15 @@ impl Interface {
     pub fn ip(&self) -> IpAddr {
         self.addr.ip()
     }
+}
+
+/// Details about the address of an interface on this host.
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum IfAddr {
+    /// This is an Ipv4 interface.
+    V4(Ifv4Addr),
+    /// This is an Ipv6 interface.
+    V6(Ifv6Addr),
 }
 
 impl IfAddr {
@@ -157,6 +135,17 @@ impl IfAddr {
     }
 }
 
+/// Details about the ipv4 address of an interface on this host.
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Ifv4Addr {
+    /// The IP address of the interface.
+    pub ip: Ipv4Addr,
+    /// The netmask of the interface.
+    pub netmask: Ipv4Addr,
+    /// The broadcast address of the interface.
+    pub broadcast: Option<Ipv4Addr>,
+}
+
 impl Ifv4Addr {
     /// Check whether this is a loopback address.
     pub fn is_loopback(&self) -> bool {
@@ -164,10 +153,125 @@ impl Ifv4Addr {
     }
 }
 
+/// Details about the ipv6 address of an interface on this host.
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Ifv6Addr {
+    /// The IP address of the interface.
+    pub ip: Ipv6Addr,
+    /// The netmask of the interface.
+    pub netmask: Ipv6Addr,
+    /// The broadcast address of the interface.
+    pub broadcast: Option<Ipv6Addr>,
+}
+
 impl Ifv6Addr {
     /// Check whether this is a loopback address.
     pub fn is_loopback(&self) -> bool {
         self.ip.segments() == [0, 0, 0, 0, 0, 0, 0, 1]
+    }
+}
+
+mod ifaddrs {
+    use c_linked_list::{CLinkedListMut, CLinkedListMutIter};
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::freeifaddrs;
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::getifaddrs;
+    #[cfg(target_os = "android")]
+    use get_if_addrs_sys::ifaddrs;
+    #[cfg(not(target_os = "android"))]
+    use libc::freeifaddrs;
+    #[cfg(not(target_os = "android"))]
+    use libc::getifaddrs;
+    #[cfg(not(target_os = "android"))]
+    use libc::ifaddrs;
+    use sockaddr;
+    use std::net::IpAddr;
+    use std::{io, mem};
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "nacl"
+    ))]
+    pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
+        sockaddr::to_ipaddr(ifaddr.ifa_ifu)
+    }
+
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "ios",
+        target_os = "macos",
+        target_os = "openbsd"
+    ))]
+    pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
+        sockaddr::to_ipaddr(ifaddr.ifa_dstaddr)
+    }
+
+    pub struct IfAddrs {
+        inner: *mut ifaddrs,
+    }
+
+    impl IfAddrs {
+        #[allow(unsafe_code)]
+        pub fn new() -> io::Result<Self> {
+            let mut ifaddrs: *mut ifaddrs;
+
+            unsafe {
+                ifaddrs = mem::uninitialized();
+                if -1 == getifaddrs(&mut ifaddrs) {
+                    return Err(io::Error::last_os_error());
+                }
+            }
+
+            Ok(Self { inner: ifaddrs })
+        }
+
+        pub fn iter<F: Fn(&ifaddrs) -> *mut ifaddrs>(&self) -> IfAddrsIterator<F> {
+            IfAddrsIterator::new(self.inner)
+        }
+    }
+
+    impl Drop for IfAddrs {
+        #[allow(unsafe_code)]
+        fn drop(&mut self) {
+            unsafe {
+                freeifaddrs(self.inner);
+            }
+        }
+    }
+
+    struct IfAddrsIterator<'a, F: Fn(&ifaddrs) -> *mut ifaddrs + 'a> {
+        iterator: CLinkedListMutIter<'a, ifaddrs, F>,
+    }
+
+    impl<'a, F: Fn(&ifaddrs) -> *mut ifaddrs + 'a> IfAddrsIterator<'a, F> {
+        #[allow(unsafe_code)]
+        fn new(ifaddrs: *mut ifaddrs) -> Self {
+            let f = |a: &ifaddrs| a.ifa_next;
+            Self {
+                iterator: unsafe { CLinkedListMut::from_ptr(ifaddrs, f) }.iter(),
+            }
+        }
+    }
+
+    impl<'a, F: Fn(&ifaddrs) -> *mut ifaddrs + 'a> Iterator for IfAddrsIterator<'a, F> {
+        type Item = &'a ifaddrs;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.iterator.next()
+            // self.current = if self.current.is_null() {
+            //     return None;
+            // } else {
+            //     (*self.current).ifa_next
+            // };
+
+            // if self.current.is_null() {
+            //     None
+            // } else {
+            //     Some(*self.current)
+            // }
+        }
     }
 }
 
@@ -282,57 +386,19 @@ mod sockaddr {
 #[cfg(not(windows))]
 mod getifaddrs_posix {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use c_linked_list::CLinkedListMut;
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::freeifaddrs;
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::getifaddrs;
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::ifaddrs;
-    #[cfg(not(target_os = "android"))]
-    use libc::freeifaddrs;
-    #[cfg(not(target_os = "android"))]
-    use libc::getifaddrs;
-    #[cfg(not(target_os = "android"))]
-    use libc::ifaddrs;
+    use ifaddrs::{self, IfAddrs};
     use sockaddr;
     use std::ffi::CStr;
+    use std::io;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-    use std::{io, mem};
 
-    #[cfg(any(
-        target_os = "linux",
-        target_os = "android",
-        target_os = "nacl"
-    ))]
-    fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
-        sockaddr::to_ipaddr(ifaddr.ifa_ifu)
-    }
-
-    #[cfg(any(
-        target_os = "freebsd",
-        target_os = "ios",
-        target_os = "macos",
-        target_os = "openbsd"
-    ))]
-    fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
-        sockaddr::to_ipaddr(ifaddr.ifa_dstaddr)
-    }
-
-    /// Return a vector of IP details for all the valid interfaces on this host
+    /// Return a vector of IP details for all the valid interfaces on this host.
     #[allow(unsafe_code)]
-    #[allow(trivial_casts)]
     pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
         let mut ret = Vec::<Interface>::new();
-        let mut ifaddrs: *mut ifaddrs;
-        unsafe {
-            ifaddrs = mem::uninitialized();
-            if -1 == getifaddrs(&mut ifaddrs) {
-                return Err(io::Error::last_os_error());
-            }
-        }
+        let ifaddrs = IfAddrs::new()?;
 
-        for ifaddr in unsafe { CLinkedListMut::from_ptr(ifaddrs, |a| a.ifa_next) }.iter() {
+        for ifaddr in ifaddrs.iter() {
             let addr = match sockaddr::to_ipaddr(ifaddr.ifa_addr) {
                 None => continue,
                 Some(IpAddr::V4(ipv4_addr)) => {
@@ -341,7 +407,7 @@ mod getifaddrs_posix {
                         _ => Ipv4Addr::new(0, 0, 0, 0),
                     };
                     let broadcast = if (ifaddr.ifa_flags & 2) != 0 {
-                        match do_broadcast(ifaddr) {
+                        match ifaddrs::do_broadcast(&ifaddr) {
                             Some(IpAddr::V4(broadcast)) => Some(broadcast),
                             _ => None,
                         }
@@ -361,7 +427,7 @@ mod getifaddrs_posix {
                         _ => Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0),
                     };
                     let broadcast = if (ifaddr.ifa_flags & 2) != 0 {
-                        match do_broadcast(ifaddr) {
+                        match ifaddrs::do_broadcast(&ifaddr) {
                             Some(IpAddr::V6(broadcast)) => Some(broadcast),
                             _ => None,
                         }
@@ -377,15 +443,12 @@ mod getifaddrs_posix {
                 }
             };
 
-            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name as *const _) }
+            let name = unsafe { CStr::from_ptr(ifaddr.ifa_name) }
                 .to_string_lossy()
                 .into_owned();
             ret.push(Interface { name, addr });
         }
 
-        unsafe {
-            freeifaddrs(ifaddrs);
-        }
         Ok(ret)
     }
 }
@@ -455,7 +518,7 @@ mod getifaddrs_windows {
     }
     #[link(name = "Iphlpapi")]
     extern "system" {
-        /// get adapter's addresses
+        /// Get adapter's addresses.
         fn GetAdaptersAddresses(
             family: c_ulong,
             flags: c_ulong,
@@ -465,10 +528,8 @@ mod getifaddrs_windows {
         ) -> c_ulong;
     }
 
-    // trivial_numeric_casts lint may become allow by default.
-    // Refer: https://github.com/rust-lang/rfcs/issues/1020
-    /// Return a vector of IP details for all the valid interfaces on this host
-    #[allow(unsafe_code, trivial_numeric_casts)]
+    /// Return a vector of IP details for all the valid interfaces on this host.
+    #[allow(unsafe_code)]
     pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
         let mut ret = Vec::<Interface>::new();
         let mut ifaddrs: *const IpAdapterAddresses;
