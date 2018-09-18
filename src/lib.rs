@@ -77,12 +77,17 @@ maidsafe_logo.png",
 #[cfg(windows)]
 extern crate winapi;
 
+#[cfg(not(windows))]
+mod ifaddrs_posix;
+#[cfg(windows)]
+mod ifaddrs_windows;
+mod sockaddr;
+
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[cfg(test)]
 #[macro_use]
 extern crate unwrap;
-extern crate c_linked_list;
 #[cfg(target_os = "android")]
 extern crate get_if_addrs_sys;
 extern crate libc;
@@ -171,222 +176,10 @@ impl Ifv6Addr {
     }
 }
 
-mod ifaddrs {
-    use c_linked_list::{CLinkedListMut, CLinkedListMutIter};
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::freeifaddrs;
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::getifaddrs;
-    #[cfg(target_os = "android")]
-    use get_if_addrs_sys::ifaddrs;
-    #[cfg(not(target_os = "android"))]
-    use libc::freeifaddrs;
-    #[cfg(not(target_os = "android"))]
-    use libc::getifaddrs;
-    #[cfg(not(target_os = "android"))]
-    use libc::ifaddrs;
-    use sockaddr;
-    use std::net::IpAddr;
-    use std::{io, mem};
-
-    #[cfg(any(
-        target_os = "linux",
-        target_os = "android",
-        target_os = "nacl"
-    ))]
-    pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
-        sockaddr::to_ipaddr(ifaddr.ifa_ifu)
-    }
-
-    #[cfg(any(
-        target_os = "freebsd",
-        target_os = "ios",
-        target_os = "macos",
-        target_os = "openbsd"
-    ))]
-    pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
-        sockaddr::to_ipaddr(ifaddr.ifa_dstaddr)
-    }
-
-    pub struct IfAddrs {
-        inner: *mut ifaddrs,
-    }
-
-    impl IfAddrs {
-        #[allow(unsafe_code)]
-        pub fn new() -> io::Result<Self> {
-            let mut ifaddrs: *mut ifaddrs;
-
-            unsafe {
-                ifaddrs = mem::uninitialized();
-                if -1 == getifaddrs(&mut ifaddrs) {
-                    return Err(io::Error::last_os_error());
-                }
-            }
-
-            Ok(Self { inner: ifaddrs })
-        }
-
-        pub fn iter<F: Fn(&ifaddrs) -> *mut ifaddrs>(&self) -> IfAddrsIterator<F> {
-            IfAddrsIterator::new(self.inner)
-        }
-    }
-
-    impl Drop for IfAddrs {
-        #[allow(unsafe_code)]
-        fn drop(&mut self) {
-            unsafe {
-                freeifaddrs(self.inner);
-            }
-        }
-    }
-
-    struct IfAddrsIterator<'a, F: Fn(&ifaddrs) -> *mut ifaddrs + 'a> {
-        iterator: CLinkedListMutIter<'a, ifaddrs, F>,
-    }
-
-    impl<'a, F: Fn(&ifaddrs) -> *mut ifaddrs + 'a> IfAddrsIterator<'a, F> {
-        #[allow(unsafe_code)]
-        fn new(ifaddrs: *mut ifaddrs) -> Self {
-            let f = |a: &ifaddrs| a.ifa_next;
-            Self {
-                iterator: unsafe { CLinkedListMut::from_ptr(ifaddrs, f) }.iter(),
-            }
-        }
-    }
-
-    impl<'a, F: Fn(&ifaddrs) -> *mut ifaddrs + 'a> Iterator for IfAddrsIterator<'a, F> {
-        type Item = &'a ifaddrs;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            self.iterator.next()
-            // self.current = if self.current.is_null() {
-            //     return None;
-            // } else {
-            //     (*self.current).ifa_next
-            // };
-
-            // if self.current.is_null() {
-            //     None
-            // } else {
-            //     Some(*self.current)
-            // }
-        }
-    }
-}
-
-mod sockaddr {
-    #[cfg(not(windows))]
-    use libc::{sockaddr, sockaddr_in, sockaddr_in6, AF_INET, AF_INET6};
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-    use std::ptr::NonNull;
-    #[cfg(windows)]
-    use winapi::{
-        sockaddr_in6, AF_INET, AF_INET6, SOCKADDR as sockaddr, SOCKADDR_IN as sockaddr_in,
-    };
-
-    pub fn to_ipaddr(sockaddr: *const sockaddr) -> Option<IpAddr> {
-        if sockaddr.is_null() {
-            return None;
-        }
-        SockAddr::new(sockaddr)?.as_ipaddr()
-    }
-
-    // Wrapper around a sockaddr pointer. Guaranteed to not be null.
-    struct SockAddr {
-        inner: NonNull<sockaddr>,
-    }
-
-    impl SockAddr {
-        fn new(sockaddr: *const sockaddr) -> Option<Self> {
-            NonNull::new(sockaddr as *mut _).map(|inner| Self { inner })
-        }
-
-        #[cfg(not(windows))]
-        fn as_ipaddr(&self) -> Option<IpAddr> {
-            match self.sockaddr_in() {
-                Some(SockAddrIn::In(sa)) => Some(IpAddr::V4(Ipv4Addr::new(
-                    ((sa.sin_addr.s_addr) & 255) as u8,
-                    ((sa.sin_addr.s_addr >> 8) & 255) as u8,
-                    ((sa.sin_addr.s_addr >> 16) & 255) as u8,
-                    ((sa.sin_addr.s_addr >> 24) & 255) as u8,
-                ))),
-                Some(SockAddrIn::In6(sa)) => {
-                    // Ignore all fe80:: addresses as these are link locals
-                    if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
-                        return None;
-                    }
-                    Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
-                }
-                None => None,
-            }
-        }
-
-        #[cfg(windows)]
-        fn as_ipaddr(&self) -> Option<IpAddr> {
-            match self.sockaddr_in() {
-                Some(SockAddrIn::In(sa)) => {
-                    // Ignore all 169.254.x.x addresses as these are not active interfaces
-                    if sa.sin_addr.S_un & 65535 == 0xfea9 {
-                        return None;
-                    }
-                    Some(IpAddr::V4(Ipv4Addr::new(
-                        ((sa.sin_addr.S_un >> 0) & 255) as u8,
-                        ((sa.sin_addr.S_un >> 8) & 255) as u8,
-                        ((sa.sin_addr.S_un >> 16) & 255) as u8,
-                        ((sa.sin_addr.S_un >> 24) & 255) as u8,
-                    )))
-                }
-                Some(SockAddrIn::In6(sa)) => {
-                    // Ignore all fe80:: addresses as these are link locals
-                    if sa.sin6_addr.s6_addr[0] == 0xfe && sa.sin6_addr.s6_addr[1] == 0x80 {
-                        return None;
-                    }
-                    Some(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)))
-                }
-                None => None,
-            }
-        }
-
-        fn sockaddr_in(&self) -> Option<SockAddrIn> {
-            const AF_INET_U32: u32 = AF_INET as u32;
-            const AF_INET6_U32: u32 = AF_INET6 as u32;
-
-            match self.sa_family() {
-                AF_INET_U32 => Some(SockAddrIn::In(self.sa_in())),
-                AF_INET6_U32 => Some(SockAddrIn::In6(self.sa_in6())),
-                _ => None,
-            }
-        }
-
-        #[allow(unsafe_code)]
-        fn sa_family(&self) -> u32 {
-            unsafe { u32::from(self.inner.as_ref().sa_family) }
-        }
-
-        #[allow(unsafe_code)]
-        #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-        fn sa_in(&self) -> sockaddr_in {
-            unsafe { *(self.inner.as_ptr() as *const sockaddr_in) }
-        }
-
-        #[allow(unsafe_code)]
-        #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-        fn sa_in6(&self) -> sockaddr_in6 {
-            unsafe { *(self.inner.as_ptr() as *const sockaddr_in6) }
-        }
-    }
-
-    enum SockAddrIn {
-        In(sockaddr_in),
-        In6(sockaddr_in6),
-    }
-}
-
 #[cfg(not(windows))]
 mod getifaddrs_posix {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use ifaddrs::{self, IfAddrs};
+    use ifaddrs_posix::{self as ifaddrs, IfAddrs};
     use sockaddr;
     use std::ffi::CStr;
     use std::io;
@@ -462,113 +255,18 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 #[cfg(windows)]
 mod getifaddrs_windows {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use c_linked_list::CLinkedListConst;
-    use libc;
-    use libc::{c_char, c_int, c_ulong, c_void, size_t};
+    use ifaddrs_windows::IfAddrs;
     use sockaddr;
-    use std::ffi::CStr;
+    use std::io;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-    use std::{io, ptr};
-    use winapi::{DWORD, ERROR_SUCCESS, SOCKADDR};
-
-    #[repr(C)]
-    struct SocketAddress {
-        pub lp_socket_address: *const SOCKADDR,
-        pub i_socket_address_length: c_int,
-    }
-    #[repr(C)]
-    struct IpAdapterUnicastAddress {
-        pub length: c_ulong,
-        pub flags: DWORD,
-        pub next: *const IpAdapterUnicastAddress,
-        // Loads more follows, but I'm not bothering to map these for now
-        pub address: SocketAddress,
-    }
-    #[repr(C)]
-    struct IpAdapterPrefix {
-        pub length: c_ulong,
-        pub flags: DWORD,
-        pub next: *const IpAdapterPrefix,
-        pub address: SocketAddress,
-        pub prefix_length: c_ulong,
-    }
-    #[repr(C)]
-    struct IpAdapterAddresses {
-        pub length: c_ulong,
-        pub if_index: DWORD,
-        pub next: *const IpAdapterAddresses,
-        pub adapter_name: *const c_char,
-        pub first_unicast_address: *const IpAdapterUnicastAddress,
-        first_anycast_address: *const c_void,
-        first_multicast_address: *const c_void,
-        first_dns_server_address: *const c_void,
-        dns_suffix: *const c_void,
-        description: *const c_void,
-        friendly_name: *const c_void,
-        physical_address: [c_char; 8],
-        physical_address_length: DWORD,
-        flags: DWORD,
-        mtu: DWORD,
-        if_type: DWORD,
-        oper_status: c_int,
-        ipv6_if_index: DWORD,
-        zone_indices: [DWORD; 16],
-        // Loads more follows, but I'm not bothering to map these for now
-        pub first_prefix: *const IpAdapterPrefix,
-    }
-    #[link(name = "Iphlpapi")]
-    extern "system" {
-        /// Get adapter's addresses.
-        fn GetAdaptersAddresses(
-            family: c_ulong,
-            flags: c_ulong,
-            reserved: *const c_void,
-            addresses: *const IpAdapterAddresses,
-            size: *mut c_ulong,
-        ) -> c_ulong;
-    }
 
     /// Return a vector of IP details for all the valid interfaces on this host.
-    #[allow(unsafe_code)]
     pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
         let mut ret = Vec::<Interface>::new();
-        let mut ifaddrs: *const IpAdapterAddresses;
-        let mut buffersize: c_ulong = 15000;
-        loop {
-            unsafe {
-                ifaddrs = libc::malloc(buffersize as size_t) as *mut IpAdapterAddresses;
-                if ifaddrs.is_null() {
-                    panic!("Failed to allocate buffer in get_if_addrs()");
-                }
-                let retcode = GetAdaptersAddresses(
-                    0,
-                    // GAA_FLAG_SKIP_ANYCAST       |
-                    // GAA_FLAG_SKIP_MULTICAST     |
-                    // GAA_FLAG_SKIP_DNS_SERVER    |
-                    // GAA_FLAG_INCLUDE_PREFIX     |
-                    // GAA_FLAG_SKIP_FRIENDLY_NAME
-                    0x3e,
-                    ptr::null(),
-                    ifaddrs,
-                    &mut buffersize,
-                );
-                match retcode {
-                    ERROR_SUCCESS => break,
-                    111 => {
-                        libc::free(ifaddrs as *mut c_void);
-                        buffersize *= 2;
-                        continue;
-                    }
-                    _ => return Err(io::Error::last_os_error()),
-                }
-            }
-        }
+        let ifaddrs = IfAddrs::new()?;
 
-        for ifaddr in unsafe { CLinkedListConst::from_ptr(ifaddrs, |a| a.next) }.iter() {
-            for addr in
-                unsafe { CLinkedListConst::from_ptr(ifaddr.first_unicast_address, |a| a.next) }
-                    .iter()
-            {
+        for ifaddr in ifaddrs.iter() {
+            for addr in ifaddr.unicast_addresses() {
                 let addr = match sockaddr::to_ipaddr(addr.address.lp_socket_address) {
                     None => continue,
                     Some(IpAddr::V4(ipv4_addr)) => {
@@ -576,10 +274,7 @@ mod getifaddrs_windows {
                         let mut item_broadcast = None;
 
                         // Search prefixes for a prefix matching addr
-                        'prefixloopv4: for prefix in
-                            unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }
-                                .iter()
-                        {
+                        'prefixloopv4: for prefix in ifaddr.prefixes() {
                             let ipprefix = sockaddr::to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V4(ref a)) => {
@@ -634,10 +329,7 @@ mod getifaddrs_windows {
                     Some(IpAddr::V6(ipv6_addr)) => {
                         let mut item_netmask = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0);
                         // Search prefixes for a prefix matching addr
-                        'prefixloopv6: for prefix in
-                            unsafe { CLinkedListConst::from_ptr(ifaddr.first_prefix, |p| p.next) }
-                                .iter()
-                        {
+                        'prefixloopv6: for prefix in ifaddr.prefixes() {
                             let ipprefix = sockaddr::to_ipaddr(prefix.address.lp_socket_address);
                             match ipprefix {
                                 Some(IpAddr::V6(ref a)) => {
@@ -684,15 +376,13 @@ mod getifaddrs_windows {
                     }
                 };
 
-                let name = unsafe { CStr::from_ptr(ifaddr.adapter_name) }
-                    .to_string_lossy()
-                    .into_owned();
-                ret.push(Interface { name, addr });
+                ret.push(Interface {
+                    name: ifaddr.name(),
+                    addr,
+                });
             }
         }
-        unsafe {
-            libc::free(ifaddrs as *mut c_void);
-        }
+
         Ok(ret)
     }
 }
@@ -755,11 +445,13 @@ mod tests {
             }).collect()
     }
 
-    #[cfg(any(
-        target_os = "linux",
-        target_os = "android",
-        target_os = "nacl"
-    ))]
+    #[cfg(
+        any(
+            target_os = "linux",
+            target_os = "android",
+            target_os = "nacl"
+        )
+    )]
     fn list_system_addrs() -> Vec<IpAddr> {
         list_system_interfaces("ip", "addr")
             .lines()
@@ -774,11 +466,13 @@ mod tests {
             }).collect()
     }
 
-    #[cfg(any(
-        target_os = "freebsd",
-        target_os = "macos",
-        target_os = "ios"
-    ))]
+    #[cfg(
+        any(
+            target_os = "freebsd",
+            target_os = "macos",
+            target_os = "ios"
+        )
+    )]
     fn list_system_addrs() -> Vec<IpAddr> {
         list_system_interfaces("ifconfig", "")
             .lines()
