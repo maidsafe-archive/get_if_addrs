@@ -81,7 +81,7 @@ impl IpAdapterAddresses {
     }
 }
 
-#[link(name = "Iphlpapi")]
+#[link(name = "iphlpapi")]
 extern "system" {
     /// Get adapter's addresses.
     fn GetAdaptersAddresses(
