@@ -27,6 +27,7 @@ struct SockAddr {
 }
 
 impl SockAddr {
+    #[allow(clippy::new_ret_no_self)]
     fn new(sockaddr: *const sockaddr) -> Option<Self> {
         NonNull::new(sockaddr as *mut _).map(|inner| Self { inner })
     }
@@ -94,13 +95,13 @@ impl SockAddr {
     }
 
     #[allow(unsafe_code)]
-    #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
+    #[allow(clippy::cast_ptr_alignment)]
     fn sa_in(&self) -> sockaddr_in {
         unsafe { *(self.inner.as_ptr() as *const sockaddr_in) }
     }
 
     #[allow(unsafe_code)]
-    #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
+    #[allow(clippy::cast_ptr_alignment)]
     fn sa_in6(&self) -> sockaddr_in6 {
         unsafe { *(self.inner.as_ptr() as *const sockaddr_in6) }
     }
