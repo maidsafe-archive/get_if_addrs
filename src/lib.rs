@@ -66,9 +66,6 @@ maidsafe_logo.png",
 )]
 #![allow(clippy::use_debug, clippy::too_many_arguments)]
 
-#[cfg(windows)]
-extern crate winapi;
-
 #[cfg(not(windows))]
 mod ifaddrs_posix;
 #[cfg(windows)]
@@ -82,7 +79,6 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 extern crate unwrap;
 #[cfg(target_os = "android")]
 extern crate get_if_addrs_sys;
-extern crate libc;
 
 /// Details about an interface on this host.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -171,8 +167,8 @@ impl Ifv6Addr {
 #[cfg(not(windows))]
 mod getifaddrs_posix {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use ifaddrs_posix::{self as ifaddrs, IfAddrs};
-    use sockaddr;
+    use crate::ifaddrs_posix::{self as ifaddrs, IfAddrs};
+    use crate::sockaddr;
     use std::ffi::CStr;
     use std::io;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -247,8 +243,8 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 #[cfg(windows)]
 mod getifaddrs_windows {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use ifaddrs_windows::IfAddrs;
-    use sockaddr;
+    use crate::ifaddrs_windows::IfAddrs;
+    use crate::sockaddr;
     use std::io;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 

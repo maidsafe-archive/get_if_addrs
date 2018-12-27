@@ -56,7 +56,7 @@
 #![cfg_attr(feature = "clippy", plugin(clippy))]
 #![cfg_attr(feature = "clippy", deny(clippy, clippy_pedantic))]
 
-extern crate get_if_addrs;
+use get_if_addrs;
 
 fn main() {
     let ifaces = get_if_addrs::get_if_addrs().unwrap();
