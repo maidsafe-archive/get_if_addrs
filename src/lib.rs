@@ -32,8 +32,6 @@ maidsafe_logo.png",
     non_shorthand_field_patterns,
     overflowing_literals,
     plugin_as_library,
-    private_no_mangle_fns,
-    private_no_mangle_statics,
     stable_features,
     unconditional_recursion,
     unknown_lints,
@@ -60,22 +58,13 @@ maidsafe_logo.png",
     missing_debug_implementations,
     variant_size_differences
 )]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    deny(
-        clippy,
-        unicode_not_nfc,
-        wrong_pub_self_convention,
-        option_unwrap_used
-    )
+#![deny(
+    clippy::all,
+    clippy::unicode_not_nfc,
+    clippy::wrong_pub_self_convention,
+    clippy::option_unwrap_used
 )]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(use_debug, too_many_arguments)
-)]
-
-#[cfg(windows)]
-extern crate winapi;
+#![allow(clippy::use_debug, clippy::too_many_arguments)]
 
 #[cfg(not(windows))]
 mod ifaddrs_posix;
@@ -90,7 +79,6 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 extern crate unwrap;
 #[cfg(target_os = "android")]
 extern crate get_if_addrs_sys;
-extern crate libc;
 
 /// Details about an interface on this host.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -179,8 +167,8 @@ impl Ifv6Addr {
 #[cfg(not(windows))]
 mod getifaddrs_posix {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use ifaddrs_posix::{self as ifaddrs, IfAddrs};
-    use sockaddr;
+    use crate::ifaddrs_posix::{self as ifaddrs, IfAddrs};
+    use crate::sockaddr;
     use std::ffi::CStr;
     use std::io;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -255,8 +243,8 @@ pub fn get_if_addrs() -> io::Result<Vec<Interface>> {
 #[cfg(windows)]
 mod getifaddrs_windows {
     use super::{IfAddr, Ifv4Addr, Ifv6Addr, Interface};
-    use ifaddrs_windows::IfAddrs;
-    use sockaddr;
+    use crate::ifaddrs_windows::IfAddrs;
+    use crate::sockaddr;
     use std::io;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -288,7 +276,8 @@ mod getifaddrs_windows {
                                         let y_byte = a.octets()[n];
                                         // Clippy 0.0.128 doesn't handle the label on the `continue`
                                         #[cfg_attr(
-                                            feature = "cargo-clippy", allow(needless_continue)
+                                            feature = "cargo-clippy",
+                                            allow(needless_continue)
                                         )]
                                         for m in 0..8 {
                                             if (n * 8) + m > prefix.prefix_length as usize {
@@ -345,7 +334,8 @@ mod getifaddrs_windows {
                                         let y_word = a.segments()[n];
                                         // Clippy 0.0.128 doesn't handle the label on the `continue`
                                         #[cfg_attr(
-                                            feature = "cargo-clippy", allow(needless_continue)
+                                            feature = "cargo-clippy",
+                                            allow(needless_continue)
                                         )]
                                         for m in 0..16 {
                                             if (n * 16) + m > prefix.prefix_length as usize {
@@ -442,16 +432,11 @@ mod tests {
                     }
                 }
                 None
-            }).collect()
+            })
+            .collect()
     }
 
-    #[cfg(
-        any(
-            target_os = "linux",
-            target_os = "android",
-            target_os = "nacl"
-        )
-    )]
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
     fn list_system_addrs() -> Vec<IpAddr> {
         list_system_interfaces("ip", "addr")
             .lines()
@@ -463,16 +448,11 @@ mod tests {
                     return Some(IpAddr::V4(unwrap!(Ipv4Addr::from_str(addr[0]))));
                 }
                 None
-            }).collect()
+            })
+            .collect()
     }
 
-    #[cfg(
-        any(
-            target_os = "freebsd",
-            target_os = "macos",
-            target_os = "ios"
-        )
-    )]
+    #[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
     fn list_system_addrs() -> Vec<IpAddr> {
         list_system_interfaces("ifconfig", "")
             .lines()
@@ -483,7 +463,8 @@ mod tests {
                     return Some(IpAddr::V4(unwrap!(Ipv4Addr::from_str(addr_s[1]))));
                 }
                 None
-            }).collect()
+            })
+            .collect()
     }
 
     #[test]

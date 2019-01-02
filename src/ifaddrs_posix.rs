@@ -7,33 +7,25 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
+use crate::sockaddr;
 #[cfg(target_os = "android")]
 use get_if_addrs_sys::{freeifaddrs, getifaddrs, ifaddrs};
 #[cfg(not(target_os = "android"))]
 use libc::{freeifaddrs, getifaddrs, ifaddrs};
-use sockaddr;
 use std::net::IpAddr;
 use std::{io, mem};
 
-#[cfg(
-    any(
-        target_os = "linux",
-        target_os = "android",
-        target_os = "nacl"
-    )
-)]
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "nacl"))]
 pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
     sockaddr::to_ipaddr(ifaddr.ifa_ifu)
 }
 
-#[cfg(
-    any(
-        target_os = "freebsd",
-        target_os = "ios",
-        target_os = "macos",
-        target_os = "openbsd"
-    )
-)]
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "ios",
+    target_os = "macos",
+    target_os = "openbsd"
+))]
 pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
     sockaddr::to_ipaddr(ifaddr.ifa_dstaddr)
 }
@@ -43,7 +35,7 @@ pub struct IfAddrs {
 }
 
 impl IfAddrs {
-    #[allow(unsafe_code)]
+    #[allow(unsafe_code, clippy::new_ret_no_self)]
     pub fn new() -> io::Result<Self> {
         let mut ifaddrs: *mut ifaddrs;
 

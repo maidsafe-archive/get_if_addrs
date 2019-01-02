@@ -8,6 +8,7 @@ name = "get_if_addrs"
 readme = "README.md"
 repository = "https://github.com/maidsafe/get_if_addrs"
 version = "0.5.3"
+edition = "2018"
 
 [dependencies]
 clippy = {version = "~0.0.175", optional = true}
