@@ -24,7 +24,8 @@ pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
     target_os = "freebsd",
     target_os = "ios",
     target_os = "macos",
-    target_os = "openbsd"
+    target_os = "openbsd",
+    target_os = "netbsd"
 ))]
 pub fn do_broadcast(ifaddr: &ifaddrs) -> Option<IpAddr> {
     sockaddr::to_ipaddr(ifaddr.ifa_dstaddr)
